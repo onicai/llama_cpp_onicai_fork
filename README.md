@@ -1,5 +1,5 @@
 # llama.cpp (onicai branch)
-In this fork, we made the `onicai` branch the default branch.
+In this fork, the default branch is `onicai`.
 
 To sync with upstream fork:
 - In GitHub, switch to `master` and click on `sync fork`
