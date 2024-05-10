@@ -5,6 +5,25 @@ To sync with upstream fork:
 - In GitHub, switch to `master` and click on `sync fork`
 - Merge `master` into `onicai`, and resolve any merge conflicts
 
+Tips to run LLamA models locally using the clang compiler:
+- See examples/main/README.md, for details on the `main` app
+
+- Get a model from [huggingface/onicai/llama_cpp_canister_models](https://huggingface.co/onicai/llama_cpp_canister_models)
+
+- Create a debug build with clang++:
+  ```
+  make main LLAMA_DEBUG=1 CC=clang CXX=clang++
+  ```
+
+- Run it:
+  ```
+  main -m models/stories15Mtok4096.gguf -p "Joe loves writing stories" -n 600 -c 128
+  ```
+
+- Debug it:
+  - Set breakpoints in `examples/main/main.cpp`
+  - Use lldb to debug
+
 # llama.cpp
 ![llama](https://user-images.githubusercontent.com/1991296/230134379-7181e485-c521-4d23-a0d6-f7b3b61ba524.png)
 
