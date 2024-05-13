@@ -1,3 +1,4 @@
+#include "ic_api.h"
 #include "common.h"
 #include "json.hpp"
 #include "json-schema-to-grammar.h"
@@ -20,164 +21,166 @@
 #include <cinttypes>
 #include <codecvt>
 
-#if defined(__APPLE__) && defined(__MACH__)
-#include <sys/types.h>
-#include <sys/sysctl.h>
-#endif
+// #if defined(__APPLE__) && defined(__MACH__)
+// #include <sys/types.h>
+// #include <sys/sysctl.h>
+// #endif
 
-#if defined(_WIN32)
-#define WIN32_LEAN_AND_MEAN
-#ifndef NOMINMAX
-#   define NOMINMAX
-#endif
-#include <locale>
-#include <windows.h>
-#include <fcntl.h>
-#include <io.h>
-#else
-#include <sys/ioctl.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#endif
-#if defined(LLAMA_USE_CURL)
-#include <curl/curl.h>
-#include <curl/easy.h>
-#include <thread>
-#include <future>
-#endif
+// #if defined(_WIN32)
+// #define WIN32_LEAN_AND_MEAN
+// #ifndef NOMINMAX
+// #   define NOMINMAX
+// #endif
+// #include <locale>
+// #include <windows.h>
+// #include <fcntl.h>
+// #include <io.h>
+// #else
+// #include <sys/ioctl.h>
+// #include <sys/stat.h>
+// #include <unistd.h>
+// #endif
+// #if defined(LLAMA_USE_CURL)
+// #include <curl/curl.h>
+// #include <curl/easy.h>
+// #include <thread>
+// #include <future>
+// #endif
 
 #if defined(_MSC_VER)
 #pragma warning(disable: 4244 4267) // possible loss of data
 #endif
 
-#if (defined(GGML_USE_CUDA) || defined(GGML_USE_SYCL))
-#define GGML_USE_CUDA_SYCL
-#endif
+// #if (defined(GGML_USE_CUDA) || defined(GGML_USE_SYCL))
+// #define GGML_USE_CUDA_SYCL
+// #endif
 
-#if (defined(GGML_USE_CUDA) || defined(GGML_USE_SYCL)) || defined(GGML_USE_VULKAN)
-#define GGML_USE_CUDA_SYCL_VULKAN
-#endif
+// #if (defined(GGML_USE_CUDA) || defined(GGML_USE_SYCL)) || defined(GGML_USE_VULKAN)
+// #define GGML_USE_CUDA_SYCL_VULKAN
+// #endif
 
-#if defined(LLAMA_USE_CURL)
-#ifdef __linux__
-#include <linux/limits.h>
-#elif defined(_WIN32)
-#define PATH_MAX MAX_PATH
-#else
-#include <sys/syslimits.h>
-#endif
+// #if defined(LLAMA_USE_CURL)
+// #ifdef __linux__
+// #include <linux/limits.h>
+// #elif defined(_WIN32)
+// #define PATH_MAX MAX_PATH
+// #else
+// #include <sys/syslimits.h>
+// #endif
 #define LLAMA_CURL_MAX_URL_LENGTH 2084 // Maximum URL Length in Chrome: 2083
 #define LLAMA_CURL_MAX_HEADER_LENGTH 256
-#endif // LLAMA_USE_CURL
+// #endif // LLAMA_USE_CURL
 
 using json = nlohmann::ordered_json;
 
 int32_t get_num_physical_cores() {
-#ifdef __linux__
-    // enumerate the set of thread siblings, num entries is num cores
-    std::unordered_set<std::string> siblings;
-    for (uint32_t cpu=0; cpu < UINT32_MAX; ++cpu) {
-        std::ifstream thread_siblings("/sys/devices/system/cpu"
-            + std::to_string(cpu) + "/topology/thread_siblings");
-        if (!thread_siblings.is_open()) {
-            break; // no more cpus
-        }
-        std::string line;
-        if (std::getline(thread_siblings, line)) {
-            siblings.insert(line);
-        }
-    }
-    if (!siblings.empty()) {
-        return static_cast<int32_t>(siblings.size());
-    }
-#elif defined(__APPLE__) && defined(__MACH__)
-    int32_t num_physical_cores;
-    size_t len = sizeof(num_physical_cores);
-    int result = sysctlbyname("hw.perflevel0.physicalcpu", &num_physical_cores, &len, NULL, 0);
-    if (result == 0) {
-        return num_physical_cores;
-    }
-    result = sysctlbyname("hw.physicalcpu", &num_physical_cores, &len, NULL, 0);
-    if (result == 0) {
-        return num_physical_cores;
-    }
-#elif defined(_WIN32)
-    //TODO: Implement
-#endif
-    unsigned int n_threads = std::thread::hardware_concurrency();
+// #ifdef __linux__
+//     // enumerate the set of thread siblings, num entries is num cores
+//     std::unordered_set<std::string> siblings;
+//     for (uint32_t cpu=0; cpu < UINT32_MAX; ++cpu) {
+//         std::ifstream thread_siblings("/sys/devices/system/cpu"
+//             + std::to_string(cpu) + "/topology/thread_siblings");
+//         if (!thread_siblings.is_open()) {
+//             break; // no more cpus
+//         }
+//         std::string line;
+//         if (std::getline(thread_siblings, line)) {
+//             siblings.insert(line);
+//         }
+//     }
+//     if (!siblings.empty()) {
+//         return static_cast<int32_t>(siblings.size());
+//     }
+// #elif defined(__APPLE__) && defined(__MACH__)
+//     int32_t num_physical_cores;
+//     size_t len = sizeof(num_physical_cores);
+//     int result = sysctlbyname("hw.perflevel0.physicalcpu", &num_physical_cores, &len, NULL, 0);
+//     if (result == 0) {
+//         return num_physical_cores;
+//     }
+//     result = sysctlbyname("hw.physicalcpu", &num_physical_cores, &len, NULL, 0);
+//     if (result == 0) {
+//         return num_physical_cores;
+//     }
+// #elif defined(_WIN32)
+//     //TODO: Implement
+// #endif
+    // AB PATCH
+    // unsigned int n_threads = std::thread::hardware_concurrency(); 
+    unsigned int n_threads = 1;
     return n_threads > 0 ? (n_threads <= 4 ? n_threads : n_threads / 2) : 4;
 }
 
-#if defined(__x86_64__) && defined(__linux__) && !defined(__ANDROID__)
-#include <pthread.h>
+// #if defined(__x86_64__) && defined(__linux__) && !defined(__ANDROID__)
+// #include <pthread.h>
 
-static void cpuid(unsigned leaf, unsigned subleaf,
-                  unsigned *eax, unsigned *ebx, unsigned *ecx, unsigned *edx) {
-    __asm__("movq\t%%rbx,%%rsi\n\t"
-            "cpuid\n\t"
-            "xchgq\t%%rbx,%%rsi"
-            : "=a"(*eax), "=S"(*ebx), "=c"(*ecx), "=d"(*edx)
-            : "0"(leaf), "2"(subleaf));
-}
+// static void cpuid(unsigned leaf, unsigned subleaf,
+//                   unsigned *eax, unsigned *ebx, unsigned *ecx, unsigned *edx) {
+//     __asm__("movq\t%%rbx,%%rsi\n\t"
+//             "cpuid\n\t"
+//             "xchgq\t%%rbx,%%rsi"
+//             : "=a"(*eax), "=S"(*ebx), "=c"(*ecx), "=d"(*edx)
+//             : "0"(leaf), "2"(subleaf));
+// }
 
-static int pin_cpu(int cpu) {
-    cpu_set_t mask;
-    CPU_ZERO(&mask);
-    CPU_SET(cpu, &mask);
-    return pthread_setaffinity_np(pthread_self(), sizeof(mask), &mask);
-}
+// static int pin_cpu(int cpu) {
+//     cpu_set_t mask;
+//     CPU_ZERO(&mask);
+//     CPU_SET(cpu, &mask);
+//     return pthread_setaffinity_np(pthread_self(), sizeof(mask), &mask);
+// }
 
-static bool is_hybrid_cpu(void) {
-    unsigned eax, ebx, ecx, edx;
-    cpuid(7, 0, &eax, &ebx, &ecx, &edx);
-    return !!(edx & (1u << 15));
-}
+// static bool is_hybrid_cpu(void) {
+//     unsigned eax, ebx, ecx, edx;
+//     cpuid(7, 0, &eax, &ebx, &ecx, &edx);
+//     return !!(edx & (1u << 15));
+// }
 
-static bool is_running_on_efficiency_core(void) {
-    unsigned eax, ebx, ecx, edx;
-    cpuid(0x1a, 0, &eax, &ebx, &ecx, &edx);
-    int intel_atom = 0x20;
-    int core_type = (eax & 0xff000000u) >> 24;
-    return core_type == intel_atom;
-}
+// static bool is_running_on_efficiency_core(void) {
+//     unsigned eax, ebx, ecx, edx;
+//     cpuid(0x1a, 0, &eax, &ebx, &ecx, &edx);
+//     int intel_atom = 0x20;
+//     int core_type = (eax & 0xff000000u) >> 24;
+//     return core_type == intel_atom;
+// }
 
-static int count_math_cpus(int cpu_count) {
-    int result = 0;
-    for (int cpu = 0; cpu < cpu_count; ++cpu) {
-        if (pin_cpu(cpu)) {
-            return -1;
-        }
-        if (is_running_on_efficiency_core()) {
-            continue; // efficiency cores harm lockstep threading
-        }
-        ++cpu; // hyperthreading isn't useful for linear algebra
-        ++result;
-    }
-    return result;
-}
+// static int count_math_cpus(int cpu_count) {
+//     int result = 0;
+//     for (int cpu = 0; cpu < cpu_count; ++cpu) {
+//         if (pin_cpu(cpu)) {
+//             return -1;
+//         }
+//         if (is_running_on_efficiency_core()) {
+//             continue; // efficiency cores harm lockstep threading
+//         }
+//         ++cpu; // hyperthreading isn't useful for linear algebra
+//         ++result;
+//     }
+//     return result;
+// }
 
-#endif // __x86_64__ && __linux__
+// #endif // __x86_64__ && __linux__
 
 /**
  * Returns number of CPUs on system that are useful for math.
  */
 int get_math_cpu_count() {
-#if defined(__x86_64__) && defined(__linux__) && !defined(__ANDROID__)
-    int cpu_count = sysconf(_SC_NPROCESSORS_ONLN);
-    if (cpu_count < 1) {
-        return get_num_physical_cores();
-    }
-    if (is_hybrid_cpu()) {
-        cpu_set_t affinity;
-        if (!pthread_getaffinity_np(pthread_self(), sizeof(affinity), &affinity)) {
-            int result = count_math_cpus(cpu_count);
-            pthread_setaffinity_np(pthread_self(), sizeof(affinity), &affinity);
-            if (result > 0) {
-                return result;
-            }
-        }
-    }
-#endif
+// #if defined(__x86_64__) && defined(__linux__) && !defined(__ANDROID__)
+//     int cpu_count = sysconf(_SC_NPROCESSORS_ONLN);
+//     if (cpu_count < 1) {
+//         return get_num_physical_cores();
+//     }
+//     if (is_hybrid_cpu()) {
+//         cpu_set_t affinity;
+//         if (!pthread_getaffinity_np(pthread_self(), sizeof(affinity), &affinity)) {
+//             int result = count_math_cpus(cpu_count);
+//             pthread_setaffinity_np(pthread_self(), sizeof(affinity), &affinity);
+//             if (result > 0) {
+//                 return result;
+//             }
+//         }
+//     }
+// #endif
     return get_num_physical_cores();
 }
 
@@ -220,17 +223,17 @@ void process_escapes(std::string & input) {
 
 bool gpt_params_parse(int argc, char ** argv, gpt_params & params) {
     bool result = true;
-    try {
+    // try {
         if (!gpt_params_parse_ex(argc, argv, params)) {
             gpt_print_usage(argc, argv, gpt_params());
             exit(0);
         }
-    }
-    catch (const std::invalid_argument & ex) {
-        fprintf(stderr, "%s\n", ex.what());
-        gpt_print_usage(argc, argv, gpt_params());
-        exit(1);
-    }
+    // }
+    // catch (const std::invalid_argument & ex) {
+    //     fprintf(stderr, "%s\n", ex.what());
+    //     gpt_print_usage(argc, argv, gpt_params());
+    //     exit(1);
+    // }
     return result;
 }
 
@@ -300,7 +303,9 @@ bool gpt_params_find_arg(int argc, char ** argv, const std::string & arg, gpt_pa
         }
         params.n_threads = std::stoi(argv[i]);
         if (params.n_threads <= 0) {
-            params.n_threads = std::thread::hardware_concurrency();
+            // AB PATCH
+            // params.n_threads = std::thread::hardware_concurrency();
+            params.n_threads = 1;
         }
         return true;
     }
@@ -311,7 +316,9 @@ bool gpt_params_find_arg(int argc, char ** argv, const std::string & arg, gpt_pa
         }
         params.n_threads_batch = std::stoi(argv[i]);
         if (params.n_threads_batch <= 0) {
-            params.n_threads_batch = std::thread::hardware_concurrency();
+            // AB PATCH
+            // params.n_threads_batch = std::thread::hardware_concurrency();
+            params.n_threads_batch = 1;
         }
         return true;
     }
@@ -322,7 +329,9 @@ bool gpt_params_find_arg(int argc, char ** argv, const std::string & arg, gpt_pa
         }
         params.n_threads_draft = std::stoi(argv[i]);
         if (params.n_threads_draft <= 0) {
-            params.n_threads_draft = std::thread::hardware_concurrency();
+            // AB PATCH
+            // params.n_threads_draft = std::thread::hardware_concurrency();
+            params.n_threads_draft = 1;
         }
         return true;
     }
@@ -333,7 +342,9 @@ bool gpt_params_find_arg(int argc, char ** argv, const std::string & arg, gpt_pa
         }
         params.n_threads_batch_draft = std::stoi(argv[i]);
         if (params.n_threads_batch_draft <= 0) {
-            params.n_threads_batch_draft = std::thread::hardware_concurrency();
+            // AB PATCH
+            // params.n_threads_batch_draft = std::thread::hardware_concurrency();
+            params.n_threads_batch_draft = 1;
         }
         return true;
     }
@@ -365,44 +376,44 @@ bool gpt_params_find_arg(int argc, char ** argv, const std::string & arg, gpt_pa
         params.prompt_cache_ro = true;
         return true;
     }
-    if (arg == "-bf" || arg == "--binary-file") {
-        if (++i >= argc) {
-            invalid_param = true;
-            return true;
-        }
-        std::ifstream file(argv[i], std::ios::binary);
-        if (!file) {
-            fprintf(stderr, "error: failed to open file '%s'\n", argv[i]);
-            invalid_param = true;
-            return true;
-        }
-        // store the external file name in params
-        params.prompt_file = argv[i];
-        std::ostringstream ss;
-        ss << file.rdbuf();
-        params.prompt = ss.str();
-        fprintf(stderr, "Read %zu bytes from binary file %s\n", params.prompt.size(), argv[i]);
-        return true;
-    }
-    if (arg == "-f" || arg == "--file") {
-        if (++i >= argc) {
-            invalid_param = true;
-            return true;
-        }
-        std::ifstream file(argv[i]);
-        if (!file) {
-            fprintf(stderr, "error: failed to open file '%s'\n", argv[i]);
-            invalid_param = true;
-            return true;
-        }
-        // store the external file name in params
-        params.prompt_file = argv[i];
-        std::copy(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>(), back_inserter(params.prompt));
-        if (!params.prompt.empty() && params.prompt.back() == '\n') {
-            params.prompt.pop_back();
-        }
-        return true;
-    }
+    // if (arg == "-bf" || arg == "--binary-file") {
+    //     if (++i >= argc) {
+    //         invalid_param = true;
+    //         return true;
+    //     }
+    //     std::ifstream file(argv[i], std::ios::binary);
+    //     if (!file) {
+    //         fprintf(stderr, "error: failed to open file '%s'\n", argv[i]);
+    //         invalid_param = true;
+    //         return true;
+    //     }
+    //     // store the external file name in params
+    //     params.prompt_file = argv[i];
+    //     std::ostringstream ss;
+    //     ss << file.rdbuf();
+    //     params.prompt = ss.str();
+    //     fprintf(stderr, "Read %zu bytes from binary file %s\n", params.prompt.size(), argv[i]);
+    //     return true;
+    // }
+    // if (arg == "-f" || arg == "--file") {
+    //     if (++i >= argc) {
+    //         invalid_param = true;
+    //         return true;
+    //     }
+    //     std::ifstream file(argv[i]);
+    //     if (!file) {
+    //         fprintf(stderr, "error: failed to open file '%s'\n", argv[i]);
+    //         invalid_param = true;
+    //         return true;
+    //     }
+    //     // store the external file name in params
+    //     params.prompt_file = argv[i];
+    //     std::copy(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>(), back_inserter(params.prompt));
+    //     if (!params.prompt.empty() && params.prompt.back() == '\n') {
+    //         params.prompt.pop_back();
+    //     }
+    //     return true;
+    // }
     if (arg == "-n" || arg == "--n-predict") {
         if (++i >= argc) {
             invalid_param = true;
@@ -678,23 +689,23 @@ bool gpt_params_find_arg(int argc, char ** argv, const std::string & arg, gpt_pa
         sparams.cfg_negative_prompt = argv[i];
         return true;
     }
-    if (arg == "--cfg-negative-prompt-file") {
-        if (++i >= argc) {
-            invalid_param = true;
-            return true;
-        }
-        std::ifstream file(argv[i]);
-        if (!file) {
-            fprintf(stderr, "error: failed to open file '%s'\n", argv[i]);
-            invalid_param = true;
-            return true;
-        }
-        std::copy(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>(), back_inserter(sparams.cfg_negative_prompt));
-        if (!sparams.cfg_negative_prompt.empty() && sparams.cfg_negative_prompt.back() == '\n') {
-            sparams.cfg_negative_prompt.pop_back();
-        }
-        return true;
-    }
+    // if (arg == "--cfg-negative-prompt-file") {
+    //     if (++i >= argc) {
+    //         invalid_param = true;
+    //         return true;
+    //     }
+    //     std::ifstream file(argv[i]);
+    //     if (!file) {
+    //         fprintf(stderr, "error: failed to open file '%s'\n", argv[i]);
+    //         invalid_param = true;
+    //         return true;
+    //     }
+    //     std::copy(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>(), back_inserter(sparams.cfg_negative_prompt));
+    //     if (!sparams.cfg_negative_prompt.empty() && sparams.cfg_negative_prompt.back() == '\n') {
+    //         sparams.cfg_negative_prompt.pop_back();
+    //     }
+    //     return true;
+    // }
     if (arg == "--cfg-scale") {
         if (++i >= argc) {
             invalid_param = true;
@@ -1204,18 +1215,20 @@ bool gpt_params_find_arg(int argc, char ** argv, const std::string & arg, gpt_pa
         llama_token key;
         char sign;
         std::string value_str;
-        try {
+        // try {
             if (ss >> key && ss >> sign && std::getline(ss, value_str) && (sign == '+' || sign == '-')) {
                 sparams.logit_bias[key] = std::stof(value_str) * ((sign == '-') ? -1.0f : 1.0f);
             }
             else {
-                throw std::exception();
+                // throw std::exception();
+                invalid_param = true; // AB PATCH
+                return true; // AB PATCH
             }
-        }
-        catch (const std::exception&) {
-            invalid_param = true;
-            return true;
-        }
+        // }
+        // catch (const std::exception&) {
+        //     invalid_param = true;
+        //     return true;
+        // }
         return true;
     }
     if (arg == "-h" || arg == "--help") {
@@ -1259,24 +1272,24 @@ bool gpt_params_find_arg(int argc, char ** argv, const std::string & arg, gpt_pa
         sparams.grammar = argv[i];
         return true;
     }
-    if (arg == "--grammar-file") {
-        if (++i >= argc) {
-            invalid_param = true;
-            return true;
-        }
-        std::ifstream file(argv[i]);
-        if (!file) {
-            fprintf(stderr, "error: failed to open file '%s'\n", argv[i]);
-            invalid_param = true;
-            return true;
-        }
-        std::copy(
-            std::istreambuf_iterator<char>(file),
-            std::istreambuf_iterator<char>(),
-            std::back_inserter(sparams.grammar)
-        );
-        return true;
-    }
+    // if (arg == "--grammar-file") {
+    //     if (++i >= argc) {
+    //         invalid_param = true;
+    //         return true;
+    //     }
+    //     std::ifstream file(argv[i]);
+    //     if (!file) {
+    //         fprintf(stderr, "error: failed to open file '%s'\n", argv[i]);
+    //         invalid_param = true;
+    //         return true;
+    //     }
+    //     std::copy(
+    //         std::istreambuf_iterator<char>(file),
+    //         std::istreambuf_iterator<char>(),
+    //         std::back_inserter(sparams.grammar)
+    //     );
+    //     return true;
+    // }
     if (arg == "-j" || arg == "--json-schema") {
         if (++i >= argc) {
             invalid_param = true;
@@ -1337,19 +1350,19 @@ bool gpt_params_parse_ex(int argc, char ** argv, gpt_params & params) {
         }
 
         if (!gpt_params_find_arg(argc, argv, arg, params, i, invalid_param)) {
-            throw std::invalid_argument("error: unknown argument: " + arg);
+            IC_API::trap(std::string("INVALID ARGUMENT: ") + "error: unknown argument: " + arg);
         }
     }
 
     if (invalid_param) {
-        throw std::invalid_argument("error: invalid parameter for argument: " + arg);
+        IC_API::trap(std::string("INVALID ARGUMENT: ") + "error: invalid parameter for argument: " + arg);
     }
 
     if (params.prompt_cache_all &&
             (params.interactive || params.interactive_first ||
              params.instruct)) {
 
-        throw std::invalid_argument("error: --prompt-cache-all not supported in interactive mode yet\n");
+        IC_API::trap(std::string("INVALID ARGUMENT: ") + "error: --prompt-cache-all not supported in interactive mode yet\n");
     }
 
     // short-hand to avoid specifying --hf-file -> default it to --model
@@ -1582,7 +1595,9 @@ std::string get_system_info(const gpt_params & params) {
     if (params.n_threads_batch != -1) {
         os << " (n_threads_batch = " << params.n_threads_batch << ")";
     }
-    os << " / " << std::thread::hardware_concurrency() << " | " << llama_print_system_info();
+    // AB PATCH
+    // os << " / " << std::thread::hardware_concurrency() << " | " << llama_print_system_info();
+    os << " / " << 1 << " | " << llama_print_system_info();
 
     return os.str();
 }
@@ -1620,7 +1635,7 @@ bool validate_file_name(const std::string & filename) {
     }
 
     std::u32string filename_utf32;
-    try {
+    // try {
         std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> converter;
         filename_utf32 = converter.from_bytes(filename);
 
@@ -1630,9 +1645,9 @@ bool validate_file_name(const std::string & filename) {
         if (filename_reencoded != filename) {
             return false;
         }
-    } catch (const std::exception &) {
-        return false;
-    }
+    // } catch (const std::exception &) {
+    //     return false;
+    // }
 
     // Check for forbidden codepoints:
     // - Control characters
@@ -1826,7 +1841,8 @@ static ggml_type kv_cache_type_from_str(const std::string & s) {
         return GGML_TYPE_Q5_1;
     }
 
-    throw std::runtime_error("Invalid cache type: " + s);
+    IC_API::trap(std::string("RUNTIME ERROR: ") + "Invalid cache type: " + s);
+    return GGML_TYPE_F32; // AB PATCH: must return something
 }
 
 struct llama_context_params llama_context_params_from_gpt_params(const gpt_params & params) {
@@ -1882,350 +1898,350 @@ void llama_batch_add(
     batch.n_tokens++;
 }
 
-#ifdef LLAMA_USE_CURL
+// #ifdef LLAMA_USE_CURL
 
-static bool llama_download_file(CURL * curl, const char * url, const char * path) {
-    bool force_download = false;
+// static bool llama_download_file(CURL * curl, const char * url, const char * path) {
+//     bool force_download = false;
 
-    // Set the URL, allow to follow http redirection
-    curl_easy_setopt(curl, CURLOPT_URL, url);
-    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+//     // Set the URL, allow to follow http redirection
+//     curl_easy_setopt(curl, CURLOPT_URL, url);
+//     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
 
-#if defined(_WIN32)
-    // CURLSSLOPT_NATIVE_CA tells libcurl to use standard certificate store of
-    //   operating system. Currently implemented under MS-Windows.
-    curl_easy_setopt(curl, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
-#endif
+// #if defined(_WIN32)
+//     // CURLSSLOPT_NATIVE_CA tells libcurl to use standard certificate store of
+//     //   operating system. Currently implemented under MS-Windows.
+//     curl_easy_setopt(curl, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
+// #endif
 
-    // Check if the file already exists locally
-    struct stat model_file_info;
-    auto file_exists = (stat(path, &model_file_info) == 0);
+//     // Check if the file already exists locally
+//     struct stat model_file_info;
+//     auto file_exists = (stat(path, &model_file_info) == 0);
 
-    // If the file exists, check for ${path_model}.etag or ${path_model}.lastModified files
-    char etag[LLAMA_CURL_MAX_HEADER_LENGTH] = {0};
-    char etag_path[PATH_MAX] = {0};
-    snprintf(etag_path, sizeof(etag_path), "%s.etag", path);
+//     // If the file exists, check for ${path_model}.etag or ${path_model}.lastModified files
+//     char etag[LLAMA_CURL_MAX_HEADER_LENGTH] = {0};
+//     char etag_path[PATH_MAX] = {0};
+//     snprintf(etag_path, sizeof(etag_path), "%s.etag", path);
 
-    char last_modified[LLAMA_CURL_MAX_HEADER_LENGTH] = {0};
-    char last_modified_path[PATH_MAX] = {0};
-    snprintf(last_modified_path, sizeof(last_modified_path), "%s.lastModified", path);
+//     char last_modified[LLAMA_CURL_MAX_HEADER_LENGTH] = {0};
+//     char last_modified_path[PATH_MAX] = {0};
+//     snprintf(last_modified_path, sizeof(last_modified_path), "%s.lastModified", path);
 
-    if (file_exists) {
-        auto * f_etag = fopen(etag_path, "r");
-        if (f_etag) {
-            if (!fgets(etag, sizeof(etag), f_etag)) {
-                fprintf(stderr, "%s: unable to read file %s\n", __func__, etag_path);
-            } else {
-                fprintf(stderr, "%s: previous file found %s: %s\n", __func__, etag_path, etag);
-            }
-            fclose(f_etag);
-        }
+//     if (file_exists) {
+//         auto * f_etag = fopen(etag_path, "r");
+//         if (f_etag) {
+//             if (!fgets(etag, sizeof(etag), f_etag)) {
+//                 fprintf(stderr, "%s: unable to read file %s\n", __func__, etag_path);
+//             } else {
+//                 fprintf(stderr, "%s: previous file found %s: %s\n", __func__, etag_path, etag);
+//             }
+//             fclose(f_etag);
+//         }
 
-        auto * f_last_modified = fopen(last_modified_path, "r");
-        if (f_last_modified) {
-            if (!fgets(last_modified, sizeof(last_modified), f_last_modified)) {
-                fprintf(stderr, "%s: unable to read file %s\n", __func__, last_modified_path);
-            } else {
-                fprintf(stderr, "%s: previous file found %s: %s\n", __func__, last_modified_path,
-                        last_modified);
-            }
-            fclose(f_last_modified);
-        }
-    }
+//         auto * f_last_modified = fopen(last_modified_path, "r");
+//         if (f_last_modified) {
+//             if (!fgets(last_modified, sizeof(last_modified), f_last_modified)) {
+//                 fprintf(stderr, "%s: unable to read file %s\n", __func__, last_modified_path);
+//             } else {
+//                 fprintf(stderr, "%s: previous file found %s: %s\n", __func__, last_modified_path,
+//                         last_modified);
+//             }
+//             fclose(f_last_modified);
+//         }
+//     }
 
-    // Send a HEAD request to retrieve the etag and last-modified headers
-    struct llama_load_model_from_url_headers {
-        char etag[LLAMA_CURL_MAX_HEADER_LENGTH] = {0};
-        char last_modified[LLAMA_CURL_MAX_HEADER_LENGTH] = {0};
-    };
-    llama_load_model_from_url_headers headers;
-    {
-        typedef size_t(*CURLOPT_HEADERFUNCTION_PTR)(char *, size_t, size_t, void *);
-        auto header_callback = [](char * buffer, size_t /*size*/, size_t n_items, void * userdata) -> size_t {
-            llama_load_model_from_url_headers *headers = (llama_load_model_from_url_headers *) userdata;
+//     // Send a HEAD request to retrieve the etag and last-modified headers
+//     struct llama_load_model_from_url_headers {
+//         char etag[LLAMA_CURL_MAX_HEADER_LENGTH] = {0};
+//         char last_modified[LLAMA_CURL_MAX_HEADER_LENGTH] = {0};
+//     };
+//     llama_load_model_from_url_headers headers;
+//     {
+//         typedef size_t(*CURLOPT_HEADERFUNCTION_PTR)(char *, size_t, size_t, void *);
+//         auto header_callback = [](char * buffer, size_t /*size*/, size_t n_items, void * userdata) -> size_t {
+//             llama_load_model_from_url_headers *headers = (llama_load_model_from_url_headers *) userdata;
 
-            // Convert header field name to lowercase
-            for (size_t i = 0; i < n_items && buffer[i] != ':'; ++i) {
-                buffer[i] = tolower(buffer[i]);
-            }
+//             // Convert header field name to lowercase
+//             for (size_t i = 0; i < n_items && buffer[i] != ':'; ++i) {
+//                 buffer[i] = tolower(buffer[i]);
+//             }
 
-            const char * etag_prefix = "etag: ";
-            if (strncmp(buffer, etag_prefix, strlen(etag_prefix)) == 0) {
-                strncpy(headers->etag, buffer + strlen(etag_prefix), n_items - strlen(etag_prefix) - 2); // Remove CRLF
-            }
+//             const char * etag_prefix = "etag: ";
+//             if (strncmp(buffer, etag_prefix, strlen(etag_prefix)) == 0) {
+//                 strncpy(headers->etag, buffer + strlen(etag_prefix), n_items - strlen(etag_prefix) - 2); // Remove CRLF
+//             }
 
-            const char * last_modified_prefix = "last-modified: ";
-            if (strncmp(buffer, last_modified_prefix, strlen(last_modified_prefix)) == 0) {
-                strncpy(headers->last_modified, buffer + strlen(last_modified_prefix),
-                        n_items - strlen(last_modified_prefix) - 2); // Remove CRLF
-            }
-            return n_items;
-        };
+//             const char * last_modified_prefix = "last-modified: ";
+//             if (strncmp(buffer, last_modified_prefix, strlen(last_modified_prefix)) == 0) {
+//                 strncpy(headers->last_modified, buffer + strlen(last_modified_prefix),
+//                         n_items - strlen(last_modified_prefix) - 2); // Remove CRLF
+//             }
+//             return n_items;
+//         };
 
-        curl_easy_setopt(curl, CURLOPT_NOBODY, 1L); // will trigger the HEAD verb
-        curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L); // hide head request progress
-        curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, static_cast<CURLOPT_HEADERFUNCTION_PTR>(header_callback));
-        curl_easy_setopt(curl, CURLOPT_HEADERDATA, &headers);
+//         curl_easy_setopt(curl, CURLOPT_NOBODY, 1L); // will trigger the HEAD verb
+//         curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L); // hide head request progress
+//         curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, static_cast<CURLOPT_HEADERFUNCTION_PTR>(header_callback));
+//         curl_easy_setopt(curl, CURLOPT_HEADERDATA, &headers);
 
-        CURLcode res = curl_easy_perform(curl);
-        if (res != CURLE_OK) {
-            curl_easy_cleanup(curl);
-            fprintf(stderr, "%s: curl_easy_perform() failed: %s\n", __func__, curl_easy_strerror(res));
-            return false;
-        }
+//         CURLcode res = curl_easy_perform(curl);
+//         if (res != CURLE_OK) {
+//             curl_easy_cleanup(curl);
+//             fprintf(stderr, "%s: curl_easy_perform() failed: %s\n", __func__, curl_easy_strerror(res));
+//             return false;
+//         }
 
-        long http_code = 0;
-        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
-        if (http_code != 200) {
-            // HEAD not supported, we don't know if the file has changed
-            // force trigger downloading
-            force_download = true;
-            fprintf(stderr, "%s: HEAD invalid http status code received: %ld\n", __func__, http_code);
-        }
-    }
+//         long http_code = 0;
+//         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+//         if (http_code != 200) {
+//             // HEAD not supported, we don't know if the file has changed
+//             // force trigger downloading
+//             force_download = true;
+//             fprintf(stderr, "%s: HEAD invalid http status code received: %ld\n", __func__, http_code);
+//         }
+//     }
 
-    // If the ETag or the Last-Modified headers are different: trigger a new download
-    bool should_download = !file_exists
-        || force_download
-        || (strlen(headers.etag) > 0 && strcmp(etag, headers.etag) != 0)
-        || (strlen(headers.last_modified) > 0 && strcmp(last_modified, headers.last_modified) != 0);
-    if (should_download) {
-        char path_temporary[PATH_MAX] = {0};
-        snprintf(path_temporary, sizeof(path_temporary), "%s.downloadInProgress", path);
-        if (file_exists) {
-            fprintf(stderr, "%s: deleting previous downloaded file: %s\n", __func__, path);
-            if (remove(path) != 0) {
-                curl_easy_cleanup(curl);
-                fprintf(stderr, "%s: unable to delete file: %s\n", __func__, path);
-                return false;
-            }
-        }
+//     // If the ETag or the Last-Modified headers are different: trigger a new download
+//     bool should_download = !file_exists
+//         || force_download
+//         || (strlen(headers.etag) > 0 && strcmp(etag, headers.etag) != 0)
+//         || (strlen(headers.last_modified) > 0 && strcmp(last_modified, headers.last_modified) != 0);
+//     if (should_download) {
+//         char path_temporary[PATH_MAX] = {0};
+//         snprintf(path_temporary, sizeof(path_temporary), "%s.downloadInProgress", path);
+//         if (file_exists) {
+//             fprintf(stderr, "%s: deleting previous downloaded file: %s\n", __func__, path);
+//             if (remove(path) != 0) {
+//                 curl_easy_cleanup(curl);
+//                 fprintf(stderr, "%s: unable to delete file: %s\n", __func__, path);
+//                 return false;
+//             }
+//         }
 
-        // Set the output file
-        auto * outfile = fopen(path_temporary, "wb");
-        if (!outfile) {
-            curl_easy_cleanup(curl);
-            fprintf(stderr, "%s: error opening local file for writing: %s\n", __func__, path);
-            return false;
-        }
+//         // Set the output file
+//         auto * outfile = fopen(path_temporary, "wb");
+//         if (!outfile) {
+//             curl_easy_cleanup(curl);
+//             fprintf(stderr, "%s: error opening local file for writing: %s\n", __func__, path);
+//             return false;
+//         }
 
-        typedef size_t(*CURLOPT_WRITEFUNCTION_PTR)(void * data, size_t size, size_t nmemb, void * fd);
-        auto write_callback = [](void * data, size_t size, size_t nmemb, void * fd) -> size_t {
-            return fwrite(data, size, nmemb, (FILE *)fd);
-        };
-        curl_easy_setopt(curl, CURLOPT_NOBODY, 0L);
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, static_cast<CURLOPT_WRITEFUNCTION_PTR>(write_callback));
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, outfile);
+//         typedef size_t(*CURLOPT_WRITEFUNCTION_PTR)(void * data, size_t size, size_t nmemb, void * fd);
+//         auto write_callback = [](void * data, size_t size, size_t nmemb, void * fd) -> size_t {
+//             return fwrite(data, size, nmemb, (FILE *)fd);
+//         };
+//         curl_easy_setopt(curl, CURLOPT_NOBODY, 0L);
+//         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, static_cast<CURLOPT_WRITEFUNCTION_PTR>(write_callback));
+//         curl_easy_setopt(curl, CURLOPT_WRITEDATA, outfile);
 
-        //  display download progress
-        curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+//         //  display download progress
+//         curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
 
-        // helper function to hide password in URL
-        auto llama_download_hide_password_in_url = [](const std::string & url) -> std::string {
-            std::size_t protocol_pos = url.find("://");
-            if (protocol_pos == std::string::npos) {
-                return url;  // Malformed URL
-            }
+//         // helper function to hide password in URL
+//         auto llama_download_hide_password_in_url = [](const std::string & url) -> std::string {
+//             std::size_t protocol_pos = url.find("://");
+//             if (protocol_pos == std::string::npos) {
+//                 return url;  // Malformed URL
+//             }
 
-            std::size_t at_pos = url.find('@', protocol_pos + 3);
-            if (at_pos == std::string::npos) {
-                return url;  // No password in URL
-            }
+//             std::size_t at_pos = url.find('@', protocol_pos + 3);
+//             if (at_pos == std::string::npos) {
+//                 return url;  // No password in URL
+//             }
 
-            return url.substr(0, protocol_pos + 3) + "********" + url.substr(at_pos);
-        };
+//             return url.substr(0, protocol_pos + 3) + "********" + url.substr(at_pos);
+//         };
 
-        // start the download
-        fprintf(stderr, "%s: downloading from %s to %s (server_etag:%s, server_last_modified:%s)...\n", __func__,
-                llama_download_hide_password_in_url(url).c_str(), path, headers.etag, headers.last_modified);
-        auto res = curl_easy_perform(curl);
-        if (res != CURLE_OK) {
-            fclose(outfile);
-            curl_easy_cleanup(curl);
-            fprintf(stderr, "%s: curl_easy_perform() failed: %s\n", __func__, curl_easy_strerror(res));
-            return false;
-        }
+//         // start the download
+//         fprintf(stderr, "%s: downloading from %s to %s (server_etag:%s, server_last_modified:%s)...\n", __func__,
+//                 llama_download_hide_password_in_url(url).c_str(), path, headers.etag, headers.last_modified);
+//         auto res = curl_easy_perform(curl);
+//         if (res != CURLE_OK) {
+//             fclose(outfile);
+//             curl_easy_cleanup(curl);
+//             fprintf(stderr, "%s: curl_easy_perform() failed: %s\n", __func__, curl_easy_strerror(res));
+//             return false;
+//         }
 
-        long http_code = 0;
-        curl_easy_getinfo (curl, CURLINFO_RESPONSE_CODE, &http_code);
-        if (http_code < 200 || http_code >= 400) {
-            fclose(outfile);
-            curl_easy_cleanup(curl);
-            fprintf(stderr, "%s: invalid http status code received: %ld\n", __func__, http_code);
-            return false;
-        }
+//         long http_code = 0;
+//         curl_easy_getinfo (curl, CURLINFO_RESPONSE_CODE, &http_code);
+//         if (http_code < 200 || http_code >= 400) {
+//             fclose(outfile);
+//             curl_easy_cleanup(curl);
+//             fprintf(stderr, "%s: invalid http status code received: %ld\n", __func__, http_code);
+//             return false;
+//         }
 
-        // Clean up
-        fclose(outfile);
+//         // Clean up
+//         fclose(outfile);
 
-        // Write the new ETag to the .etag file
-        if (strlen(headers.etag) > 0) {
-            auto * etag_file = fopen(etag_path, "w");
-            if (etag_file) {
-                fputs(headers.etag, etag_file);
-                fclose(etag_file);
-                fprintf(stderr, "%s: file etag saved %s: %s\n", __func__, etag_path, headers.etag);
-            }
-        }
+//         // Write the new ETag to the .etag file
+//         if (strlen(headers.etag) > 0) {
+//             auto * etag_file = fopen(etag_path, "w");
+//             if (etag_file) {
+//                 fputs(headers.etag, etag_file);
+//                 fclose(etag_file);
+//                 fprintf(stderr, "%s: file etag saved %s: %s\n", __func__, etag_path, headers.etag);
+//             }
+//         }
 
-        // Write the new lastModified to the .etag file
-        if (strlen(headers.last_modified) > 0) {
-            auto * last_modified_file = fopen(last_modified_path, "w");
-            if (last_modified_file) {
-                fputs(headers.last_modified, last_modified_file);
-                fclose(last_modified_file);
-                fprintf(stderr, "%s: file last modified saved %s: %s\n", __func__, last_modified_path,
-                        headers.last_modified);
-            }
-        }
+//         // Write the new lastModified to the .etag file
+//         if (strlen(headers.last_modified) > 0) {
+//             auto * last_modified_file = fopen(last_modified_path, "w");
+//             if (last_modified_file) {
+//                 fputs(headers.last_modified, last_modified_file);
+//                 fclose(last_modified_file);
+//                 fprintf(stderr, "%s: file last modified saved %s: %s\n", __func__, last_modified_path,
+//                         headers.last_modified);
+//             }
+//         }
 
-        if (rename(path_temporary, path) != 0) {
-            curl_easy_cleanup(curl);
-            fprintf(stderr, "%s: unable to rename file: %s to %s\n", __func__, path_temporary, path);
-            return false;
-        }
-    }
+//         if (rename(path_temporary, path) != 0) {
+//             curl_easy_cleanup(curl);
+//             fprintf(stderr, "%s: unable to rename file: %s to %s\n", __func__, path_temporary, path);
+//             return false;
+//         }
+//     }
 
-    return true;
-}
+//     return true;
+// }
 
-struct llama_model * llama_load_model_from_url(
-        const char * model_url,
-        const char * path_model,
-        const struct llama_model_params & params) {
-    // Basic validation of the model_url
-    if (!model_url || strlen(model_url) == 0) {
-        fprintf(stderr, "%s: invalid model_url\n", __func__);
-        return NULL;
-    }
+// struct llama_model * llama_load_model_from_url(
+//         const char * model_url,
+//         const char * path_model,
+//         const struct llama_model_params & params) {
+//     // Basic validation of the model_url
+//     if (!model_url || strlen(model_url) == 0) {
+//         fprintf(stderr, "%s: invalid model_url\n", __func__);
+//         return NULL;
+//     }
 
-    // Initialize libcurl
-    auto * curl = curl_easy_init();
+//     // Initialize libcurl
+//     auto * curl = curl_easy_init();
 
-    if (!curl) {
-        fprintf(stderr, "%s: error initializing libcurl\n", __func__);
-        return NULL;
-    }
+//     if (!curl) {
+//         fprintf(stderr, "%s: error initializing libcurl\n", __func__);
+//         return NULL;
+//     }
 
-    if (!llama_download_file(curl, model_url, path_model)) {
-        return NULL;
-    }
+//     if (!llama_download_file(curl, model_url, path_model)) {
+//         return NULL;
+//     }
 
-    // check for additional GGUFs split to download
-    int n_split = 0;
-    {
-        struct gguf_init_params gguf_params = {
-            /*.no_alloc = */ true,
-            /*.ctx      = */ NULL,
-        };
-        auto * ctx_gguf = gguf_init_from_file(path_model, gguf_params);
-        if (!ctx_gguf) {
-            fprintf(stderr, "\n%s:  failed to load input GGUF from %s\n", __func__, path_model);
-            curl_easy_cleanup(curl);
-            return NULL;
-        }
+//     // check for additional GGUFs split to download
+//     int n_split = 0;
+//     {
+//         struct gguf_init_params gguf_params = {
+//             /*.no_alloc = */ true,
+//             /*.ctx      = */ NULL,
+//         };
+//         auto * ctx_gguf = gguf_init_from_file(path_model, gguf_params);
+//         if (!ctx_gguf) {
+//             fprintf(stderr, "\n%s:  failed to load input GGUF from %s\n", __func__, path_model);
+//             curl_easy_cleanup(curl);
+//             return NULL;
+//         }
 
-        auto key_n_split = gguf_find_key(ctx_gguf, LLM_KV_SPLIT_COUNT);
-        if (key_n_split >= 0) {
-            n_split = gguf_get_val_u16(ctx_gguf, key_n_split);
-        }
+//         auto key_n_split = gguf_find_key(ctx_gguf, LLM_KV_SPLIT_COUNT);
+//         if (key_n_split >= 0) {
+//             n_split = gguf_get_val_u16(ctx_gguf, key_n_split);
+//         }
 
-        gguf_free(ctx_gguf);
-    }
+//         gguf_free(ctx_gguf);
+//     }
 
-    curl_easy_cleanup(curl);
+//     curl_easy_cleanup(curl);
 
-    if (n_split > 1) {
-        char split_prefix[PATH_MAX] = {0};
-        char split_url_prefix[LLAMA_CURL_MAX_URL_LENGTH] = {0};
+//     if (n_split > 1) {
+//         char split_prefix[PATH_MAX] = {0};
+//         char split_url_prefix[LLAMA_CURL_MAX_URL_LENGTH] = {0};
 
-        // Verify the first split file format
-        // and extract split URL and PATH prefixes
-        {
-            if (!llama_split_prefix(split_prefix, sizeof(split_prefix), path_model, 0, n_split)) {
-                fprintf(stderr, "\n%s: unexpected model file name: %s"
-                                " n_split=%d\n", __func__, path_model, n_split);
-                return NULL;
-            }
+//         // Verify the first split file format
+//         // and extract split URL and PATH prefixes
+//         {
+//             if (!llama_split_prefix(split_prefix, sizeof(split_prefix), path_model, 0, n_split)) {
+//                 fprintf(stderr, "\n%s: unexpected model file name: %s"
+//                                 " n_split=%d\n", __func__, path_model, n_split);
+//                 return NULL;
+//             }
 
-            if (!llama_split_prefix(split_url_prefix, sizeof(split_url_prefix), model_url, 0, n_split)) {
-                fprintf(stderr, "\n%s: unexpected model url: %s"
-                                " n_split=%d\n", __func__, model_url, n_split);
-                return NULL;
-            }
-        }
+//             if (!llama_split_prefix(split_url_prefix, sizeof(split_url_prefix), model_url, 0, n_split)) {
+//                 fprintf(stderr, "\n%s: unexpected model url: %s"
+//                                 " n_split=%d\n", __func__, model_url, n_split);
+//                 return NULL;
+//             }
+//         }
 
-        // Prepare download in parallel
-        std::vector<std::future<bool>> futures_download;
-        for (int idx = 1; idx < n_split; idx++) {
-            futures_download.push_back(std::async(std::launch::async, [&split_prefix, &split_url_prefix, &n_split](int download_idx) -> bool {
-                char split_path[PATH_MAX] = {0};
-                llama_split_path(split_path, sizeof(split_path), split_prefix, download_idx, n_split);
+//         // Prepare download in parallel
+//         std::vector<std::future<bool>> futures_download;
+//         for (int idx = 1; idx < n_split; idx++) {
+//             futures_download.push_back(std::async(std::launch::async, [&split_prefix, &split_url_prefix, &n_split](int download_idx) -> bool {
+//                 char split_path[PATH_MAX] = {0};
+//                 llama_split_path(split_path, sizeof(split_path), split_prefix, download_idx, n_split);
 
-                char split_url[LLAMA_CURL_MAX_URL_LENGTH] = {0};
-                llama_split_path(split_url, sizeof(split_url), split_url_prefix, download_idx, n_split);
+//                 char split_url[LLAMA_CURL_MAX_URL_LENGTH] = {0};
+//                 llama_split_path(split_url, sizeof(split_url), split_url_prefix, download_idx, n_split);
 
-                auto * curl = curl_easy_init();
-                bool res = llama_download_file(curl, split_url, split_path);
-                curl_easy_cleanup(curl);
+//                 auto * curl = curl_easy_init();
+//                 bool res = llama_download_file(curl, split_url, split_path);
+//                 curl_easy_cleanup(curl);
 
-                return res;
-            }, idx));
-        }
+//                 return res;
+//             }, idx));
+//         }
 
-        // Wait for all downloads to complete
-        for (auto & f : futures_download) {
-            if (!f.get()) {
-                return NULL;
-            }
-        }
-    }
+//         // Wait for all downloads to complete
+//         for (auto & f : futures_download) {
+//             if (!f.get()) {
+//                 return NULL;
+//             }
+//         }
+//     }
 
-    return llama_load_model_from_file(path_model, params);
-}
+//     return llama_load_model_from_file(path_model, params);
+// }
 
-struct llama_model * llama_load_model_from_hf(
-        const char * repo,
-        const char * model,
-        const char * path_model,
-        const struct llama_model_params & params) {
-    // construct hugging face model url:
-    //
-    //  --repo ggml-org/models --file tinyllama-1.1b/ggml-model-f16.gguf
-    //    https://huggingface.co/ggml-org/models/resolve/main/tinyllama-1.1b/ggml-model-f16.gguf
-    //
-    //  --repo TheBloke/Mixtral-8x7B-v0.1-GGUF --file mixtral-8x7b-v0.1.Q4_K_M.gguf
-    //    https://huggingface.co/TheBloke/Mixtral-8x7B-v0.1-GGUF/resolve/main/mixtral-8x7b-v0.1.Q4_K_M.gguf
-    //
+// struct llama_model * llama_load_model_from_hf(
+//         const char * repo,
+//         const char * model,
+//         const char * path_model,
+//         const struct llama_model_params & params) {
+//     // construct hugging face model url:
+//     //
+//     //  --repo ggml-org/models --file tinyllama-1.1b/ggml-model-f16.gguf
+//     //    https://huggingface.co/ggml-org/models/resolve/main/tinyllama-1.1b/ggml-model-f16.gguf
+//     //
+//     //  --repo TheBloke/Mixtral-8x7B-v0.1-GGUF --file mixtral-8x7b-v0.1.Q4_K_M.gguf
+//     //    https://huggingface.co/TheBloke/Mixtral-8x7B-v0.1-GGUF/resolve/main/mixtral-8x7b-v0.1.Q4_K_M.gguf
+//     //
 
-    std::string model_url = "https://huggingface.co/";
-    model_url += repo;
-    model_url += "/resolve/main/";
-    model_url += model;
+//     std::string model_url = "https://huggingface.co/";
+//     model_url += repo;
+//     model_url += "/resolve/main/";
+//     model_url += model;
 
-    return llama_load_model_from_url(model_url.c_str(), path_model, params);
-}
+//     return llama_load_model_from_url(model_url.c_str(), path_model, params);
+// }
 
-#else
+// #else
 
-struct llama_model * llama_load_model_from_url(
-        const char * /*model_url*/,
-        const char * /*path_model*/,
-        const struct llama_model_params & /*params*/) {
-    fprintf(stderr, "%s: llama.cpp built without libcurl, downloading from an url not supported.\n", __func__);
-    return nullptr;
-}
+// struct llama_model * llama_load_model_from_url(
+//         const char * /*model_url*/,
+//         const char * /*path_model*/,
+//         const struct llama_model_params & /*params*/) {
+//     fprintf(stderr, "%s: llama.cpp built without libcurl, downloading from an url not supported.\n", __func__);
+//     return nullptr;
+// }
 
-struct llama_model * llama_load_model_from_hf(
-        const char * /*repo*/,
-        const char * /*model*/,
-        const char * /*path_model*/,
-        const struct llama_model_params & /*params*/) {
-    fprintf(stderr, "%s: llama.cpp built without libcurl, downloading from Hugging Face not supported.\n", __func__);
-    return nullptr;
-}
+// struct llama_model * llama_load_model_from_hf(
+//         const char * /*repo*/,
+//         const char * /*model*/,
+//         const char * /*path_model*/,
+//         const struct llama_model_params & /*params*/) {
+//     fprintf(stderr, "%s: llama.cpp built without libcurl, downloading from Hugging Face not supported.\n", __func__);
+//     return nullptr;
+// }
 
-#endif // LLAMA_USE_CURL
+// #endif // LLAMA_USE_CURL
 
 std::tuple<struct llama_model *, struct llama_context *> llama_init_from_gpt_params(gpt_params & params) {
     auto mparams = llama_model_params_from_gpt_params(params);
@@ -2403,134 +2419,134 @@ bool llama_should_add_bos_token(const llama_model * model) {
 //
 
 // returns true if successful, false otherwise
-bool create_directory_with_parents(const std::string & path) {
-#ifdef _WIN32
-    std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
-    std::wstring wpath = converter.from_bytes(path);
+// bool create_directory_with_parents(const std::string & path) {
+// #ifdef _WIN32
+//     std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+//     std::wstring wpath = converter.from_bytes(path);
 
-    // if the path already exists, check whether it's a directory
-    const DWORD attributes = GetFileAttributesW(wpath.c_str());
-    if ((attributes != INVALID_FILE_ATTRIBUTES) && (attributes & FILE_ATTRIBUTE_DIRECTORY)) {
-        return true;
-    }
+//     // if the path already exists, check whether it's a directory
+//     const DWORD attributes = GetFileAttributesW(wpath.c_str());
+//     if ((attributes != INVALID_FILE_ATTRIBUTES) && (attributes & FILE_ATTRIBUTE_DIRECTORY)) {
+//         return true;
+//     }
 
-    size_t pos_slash = 0;
+//     size_t pos_slash = 0;
 
-    // process path from front to back, procedurally creating directories
-    while ((pos_slash = path.find('\\', pos_slash)) != std::string::npos) {
-        const std::wstring subpath = wpath.substr(0, pos_slash);
-        const wchar_t * test = subpath.c_str();
+//     // process path from front to back, procedurally creating directories
+//     while ((pos_slash = path.find('\\', pos_slash)) != std::string::npos) {
+//         const std::wstring subpath = wpath.substr(0, pos_slash);
+//         const wchar_t * test = subpath.c_str();
 
-        const bool success = CreateDirectoryW(test, NULL);
-        if (!success) {
-            const DWORD error = GetLastError();
+//         const bool success = CreateDirectoryW(test, NULL);
+//         if (!success) {
+//             const DWORD error = GetLastError();
 
-            // if the path already exists, ensure that it's a directory
-            if (error == ERROR_ALREADY_EXISTS) {
-                const DWORD attributes = GetFileAttributesW(subpath.c_str());
-                if (attributes == INVALID_FILE_ATTRIBUTES || !(attributes & FILE_ATTRIBUTE_DIRECTORY)) {
-                    return false;
-                }
-            } else {
-                return false;
-            }
-        }
+//             // if the path already exists, ensure that it's a directory
+//             if (error == ERROR_ALREADY_EXISTS) {
+//                 const DWORD attributes = GetFileAttributesW(subpath.c_str());
+//                 if (attributes == INVALID_FILE_ATTRIBUTES || !(attributes & FILE_ATTRIBUTE_DIRECTORY)) {
+//                     return false;
+//                 }
+//             } else {
+//                 return false;
+//             }
+//         }
 
-        pos_slash += 1;
-    }
+//         pos_slash += 1;
+//     }
 
-    return true;
-#else
-    // if the path already exists, check whether it's a directory
-    struct stat info;
-    if (stat(path.c_str(), &info) == 0) {
-        return S_ISDIR(info.st_mode);
-    }
+//     return true;
+// #else
+//     // if the path already exists, check whether it's a directory
+//     struct stat info;
+//     if (stat(path.c_str(), &info) == 0) {
+//         return S_ISDIR(info.st_mode);
+//     }
 
-    size_t pos_slash = 1; // skip leading slashes for directory creation
+//     size_t pos_slash = 1; // skip leading slashes for directory creation
 
-    // process path from front to back, procedurally creating directories
-    while ((pos_slash = path.find('/', pos_slash)) != std::string::npos) {
-        const std::string subpath = path.substr(0, pos_slash);
-        struct stat info;
+//     // process path from front to back, procedurally creating directories
+//     while ((pos_slash = path.find('/', pos_slash)) != std::string::npos) {
+//         const std::string subpath = path.substr(0, pos_slash);
+//         struct stat info;
 
-        // if the path already exists, ensure that it's a directory
-        if (stat(subpath.c_str(), &info) == 0) {
-            if (!S_ISDIR(info.st_mode)) {
-                return false;
-            }
-        } else {
-            // create parent directories
-            const int ret = mkdir(subpath.c_str(), 0755);
-            if (ret != 0) {
-                return false;
-            }
-        }
+//         // if the path already exists, ensure that it's a directory
+//         if (stat(subpath.c_str(), &info) == 0) {
+//             if (!S_ISDIR(info.st_mode)) {
+//                 return false;
+//             }
+//         } else {
+//             // create parent directories
+//             const int ret = mkdir(subpath.c_str(), 0755);
+//             if (ret != 0) {
+//                 return false;
+//             }
+//         }
 
-        pos_slash += 1;
-    }
+//         pos_slash += 1;
+//     }
 
-    return true;
-#endif // _WIN32
-}
+//     return true;
+// #endif // _WIN32
+// }
 
-void dump_vector_float_yaml(FILE * stream, const char * prop_name, const std::vector<float> & data) {
-    if (data.empty()) {
-        fprintf(stream, "%s:\n", prop_name);
-        return;
-    }
+// void dump_vector_float_yaml(FILE * stream, const char * prop_name, const std::vector<float> & data) {
+//     if (data.empty()) {
+//         fprintf(stream, "%s:\n", prop_name);
+//         return;
+//     }
 
-    fprintf(stream, "%s: [", prop_name);
-    for (size_t i = 0; i < data.size() - 1; ++i) {
-        fprintf(stream, "%e, ", data[i]);
-    }
-    fprintf(stream, "%e]\n", data.back());
-}
+//     fprintf(stream, "%s: [", prop_name);
+//     for (size_t i = 0; i < data.size() - 1; ++i) {
+//         fprintf(stream, "%e, ", data[i]);
+//     }
+//     fprintf(stream, "%e]\n", data.back());
+// }
 
-void dump_vector_int_yaml(FILE * stream, const char * prop_name, const std::vector<int> & data) {
-    if (data.empty()) {
-        fprintf(stream, "%s:\n", prop_name);
-        return;
-    }
+// void dump_vector_int_yaml(FILE * stream, const char * prop_name, const std::vector<int> & data) {
+//     if (data.empty()) {
+//         fprintf(stream, "%s:\n", prop_name);
+//         return;
+//     }
 
-    fprintf(stream, "%s: [", prop_name);
-    for (size_t i = 0; i < data.size() - 1; ++i) {
-        fprintf(stream, "%d, ", data[i]);
-    }
-    fprintf(stream, "%d]\n", data.back());
-}
+//     fprintf(stream, "%s: [", prop_name);
+//     for (size_t i = 0; i < data.size() - 1; ++i) {
+//         fprintf(stream, "%d, ", data[i]);
+//     }
+//     fprintf(stream, "%d]\n", data.back());
+// }
 
-void dump_string_yaml_multiline(FILE * stream, const char * prop_name, const char * data) {
-    std::string data_str(data == NULL ? "" : data);
+// void dump_string_yaml_multiline(FILE * stream, const char * prop_name, const char * data) {
+//     std::string data_str(data == NULL ? "" : data);
 
-    if (data_str.empty()) {
-        fprintf(stream, "%s:\n", prop_name);
-        return;
-    }
+//     if (data_str.empty()) {
+//         fprintf(stream, "%s:\n", prop_name);
+//         return;
+//     }
 
-    size_t pos_start = 0;
-    size_t pos_found = 0;
+//     size_t pos_start = 0;
+//     size_t pos_found = 0;
 
-    if (!data_str.empty() && (std::isspace(data_str[0]) || std::isspace(data_str.back()))) {
-        data_str = std::regex_replace(data_str, std::regex("\n"), "\\n");
-        data_str = std::regex_replace(data_str, std::regex("\""), "\\\"");
-        data_str = std::regex_replace(data_str, std::regex(R"(\\[^n"])"), R"(\$&)");
-        data_str = "\"" + data_str + "\"";
-        fprintf(stream, "%s: %s\n", prop_name, data_str.c_str());
-        return;
-    }
+//     if (!data_str.empty() && (std::isspace(data_str[0]) || std::isspace(data_str.back()))) {
+//         data_str = std::regex_replace(data_str, std::regex("\n"), "\\n");
+//         data_str = std::regex_replace(data_str, std::regex("\""), "\\\"");
+//         data_str = std::regex_replace(data_str, std::regex(R"(\\[^n"])"), R"(\$&)");
+//         data_str = "\"" + data_str + "\"";
+//         fprintf(stream, "%s: %s\n", prop_name, data_str.c_str());
+//         return;
+//     }
 
-    if (data_str.find('\n') == std::string::npos) {
-        fprintf(stream, "%s: %s\n", prop_name, data_str.c_str());
-        return;
-    }
+//     if (data_str.find('\n') == std::string::npos) {
+//         fprintf(stream, "%s: %s\n", prop_name, data_str.c_str());
+//         return;
+//     }
 
-    fprintf(stream, "%s: |\n", prop_name);
-    while ((pos_found = data_str.find('\n', pos_start)) != std::string::npos) {
-        fprintf(stream, "  %s\n", data_str.substr(pos_start, pos_found-pos_start).c_str());
-        pos_start = pos_found + 1;
-    }
-}
+//     fprintf(stream, "%s: |\n", prop_name);
+//     while ((pos_found = data_str.find('\n', pos_start)) != std::string::npos) {
+//         fprintf(stream, "  %s\n", data_str.substr(pos_start, pos_found-pos_start).c_str());
+//         pos_start = pos_found + 1;
+//     }
+// }
 
 std::string get_sortable_timestamp() {
     using clock = std::chrono::system_clock;
@@ -2697,7 +2713,9 @@ void dump_non_result_info_yaml(FILE * stream, const gpt_params & params, const l
     dump_vector_float_yaml(stream, "tensor_split", tensor_split_vector);
 
     fprintf(stream, "tfs: %f # default: 1.0\n", sparams.tfs_z);
-    fprintf(stream, "threads: %d # default: %u\n", params.n_threads, std::thread::hardware_concurrency());
+    // AB PATCH
+    // fprintf(stream, "threads: %d # default: %u\n", params.n_threads, std::thread::hardware_concurrency());
+    fprintf(stream, "threads: %d # default: %u\n", params.n_threads, 1);
     fprintf(stream, "top_k: %d # default: 40\n", sparams.top_k);
     fprintf(stream, "top_p: %f # default: 0.95\n", sparams.top_p);
     fprintf(stream, "min_p: %f # default: 0.0\n", sparams.min_p);
@@ -2848,7 +2866,7 @@ static llama_control_vector_data llama_control_vector_load_one(const llama_contr
             // split on '.'
             size_t dotpos = name.find('.');
             if (dotpos != std::string::npos && name.substr(0, dotpos) == "direction") {
-                try {
+                // try {
                     uint32_t layer = std::stoi(name.substr(dotpos + 1));
                     if (layer == 0) {
                         fprintf(stderr, "%s: direction tensor invalid in %s\n", __func__, load_info.fname.c_str());
@@ -2859,12 +2877,12 @@ static llama_control_vector_data llama_control_vector_load_one(const llama_contr
                     if (layer > max_direction_layer) {
                         max_direction_layer = layer;
                     }
-                } catch (...) {
-                    fprintf(stderr, "%s: direction tensor invalid in %s\n", __func__, load_info.fname.c_str());
-                    ggml_free(meta_ctx);
-                    gguf_free(meta_ctx_gguf);
-                    return result;
-                }
+                // } catch (...) {
+                //     fprintf(stderr, "%s: direction tensor invalid in %s\n", __func__, load_info.fname.c_str());
+                //     ggml_free(meta_ctx);
+                //     gguf_free(meta_ctx_gguf);
+                //     return result;
+                // }
             }
 
             struct ggml_tensor * tensor_meta = ggml_get_tensor(meta_ctx, name.c_str());
