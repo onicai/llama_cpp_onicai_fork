@@ -2248,13 +2248,13 @@ std::tuple<struct llama_model *, struct llama_context *> llama_init_from_gpt_par
 
     llama_model * model = nullptr;
 
-    if (!params.hf_repo.empty() && !params.hf_file.empty()) {
-        model = llama_load_model_from_hf(params.hf_repo.c_str(), params.hf_file.c_str(), params.model.c_str(), mparams);
-    } else if (!params.model_url.empty()) {
-        model = llama_load_model_from_url(params.model_url.c_str(), params.model.c_str(), mparams);
-    } else {
-        model = llama_load_model_from_file(params.model.c_str(), mparams);
-    }
+    // if (!params.hf_repo.empty() && !params.hf_file.empty()) {
+    //     model = llama_load_model_from_hf(params.hf_repo.c_str(), params.hf_file.c_str(), params.model.c_str(), mparams);
+    // } else if (!params.model_url.empty()) {
+    //     model = llama_load_model_from_url(params.model_url.c_str(), params.model.c_str(), mparams);
+    // } else {
+    //     model = llama_load_model_from_file(params.model.c_str(), mparams);
+    // }
 
     if (model == NULL) {
         fprintf(stderr, "%s: error: failed to load model '%s'\n", __func__, params.model.c_str());
@@ -2564,165 +2564,165 @@ std::string get_sortable_timestamp() {
     return std::string(timestamp_no_ns) + "." + std::string(timestamp_ns);
 }
 
-void dump_non_result_info_yaml(FILE * stream, const gpt_params & params, const llama_context * lctx,
-                               const std::string & timestamp, const std::vector<int> & prompt_tokens, const char * model_desc) {
-    const llama_sampling_params & sparams = params.sparams;
+// void dump_non_result_info_yaml(FILE * stream, const gpt_params & params, const llama_context * lctx,
+//                                const std::string & timestamp, const std::vector<int> & prompt_tokens, const char * model_desc) {
+//     const llama_sampling_params & sparams = params.sparams;
 
-    fprintf(stream, "build_commit: %s\n",        LLAMA_COMMIT);
-    fprintf(stream, "build_number: %d\n",        LLAMA_BUILD_NUMBER);
-    fprintf(stream, "cpu_has_arm_fma: %s\n",     ggml_cpu_has_arm_fma()     ? "true" : "false");
-    fprintf(stream, "cpu_has_avx: %s\n",         ggml_cpu_has_avx()         ? "true" : "false");
-    fprintf(stream, "cpu_has_avx_vnni: %s\n",    ggml_cpu_has_avx_vnni()    ? "true" : "false");
-    fprintf(stream, "cpu_has_avx2: %s\n",        ggml_cpu_has_avx2()        ? "true" : "false");
-    fprintf(stream, "cpu_has_avx512: %s\n",      ggml_cpu_has_avx512()      ? "true" : "false");
-    fprintf(stream, "cpu_has_avx512_vbmi: %s\n", ggml_cpu_has_avx512_vbmi() ? "true" : "false");
-    fprintf(stream, "cpu_has_avx512_vnni: %s\n", ggml_cpu_has_avx512_vnni() ? "true" : "false");
-    fprintf(stream, "cpu_has_cuda: %s\n",        ggml_cpu_has_cuda()        ? "true" : "false");
-    fprintf(stream, "cpu_has_vulkan: %s\n",      ggml_cpu_has_vulkan()      ? "true" : "false");
-    fprintf(stream, "cpu_has_clblast: %s\n",     ggml_cpu_has_clblast()     ? "true" : "false");
-    fprintf(stream, "cpu_has_kompute: %s\n",     ggml_cpu_has_kompute()     ? "true" : "false");
-    fprintf(stream, "cpu_has_fma: %s\n",         ggml_cpu_has_fma()         ? "true" : "false");
-    fprintf(stream, "cpu_has_gpublas: %s\n",     ggml_cpu_has_gpublas()     ? "true" : "false");
-    fprintf(stream, "cpu_has_neon: %s\n",        ggml_cpu_has_neon()        ? "true" : "false");
-    fprintf(stream, "cpu_has_f16c: %s\n",        ggml_cpu_has_f16c()        ? "true" : "false");
-    fprintf(stream, "cpu_has_fp16_va: %s\n",     ggml_cpu_has_fp16_va()     ? "true" : "false");
-    fprintf(stream, "cpu_has_wasm_simd: %s\n",   ggml_cpu_has_wasm_simd()   ? "true" : "false");
-    fprintf(stream, "cpu_has_blas: %s\n",        ggml_cpu_has_blas()        ? "true" : "false");
-    fprintf(stream, "cpu_has_sse3: %s\n",        ggml_cpu_has_sse3()        ? "true" : "false");
-    fprintf(stream, "cpu_has_vsx: %s\n",         ggml_cpu_has_vsx()         ? "true" : "false");
-    fprintf(stream, "cpu_has_matmul_int8: %s\n", ggml_cpu_has_matmul_int8() ? "true" : "false");
+//     fprintf(stream, "build_commit: %s\n",        LLAMA_COMMIT);
+//     fprintf(stream, "build_number: %d\n",        LLAMA_BUILD_NUMBER);
+//     fprintf(stream, "cpu_has_arm_fma: %s\n",     ggml_cpu_has_arm_fma()     ? "true" : "false");
+//     fprintf(stream, "cpu_has_avx: %s\n",         ggml_cpu_has_avx()         ? "true" : "false");
+//     fprintf(stream, "cpu_has_avx_vnni: %s\n",    ggml_cpu_has_avx_vnni()    ? "true" : "false");
+//     fprintf(stream, "cpu_has_avx2: %s\n",        ggml_cpu_has_avx2()        ? "true" : "false");
+//     fprintf(stream, "cpu_has_avx512: %s\n",      ggml_cpu_has_avx512()      ? "true" : "false");
+//     fprintf(stream, "cpu_has_avx512_vbmi: %s\n", ggml_cpu_has_avx512_vbmi() ? "true" : "false");
+//     fprintf(stream, "cpu_has_avx512_vnni: %s\n", ggml_cpu_has_avx512_vnni() ? "true" : "false");
+//     fprintf(stream, "cpu_has_cuda: %s\n",        ggml_cpu_has_cuda()        ? "true" : "false");
+//     fprintf(stream, "cpu_has_vulkan: %s\n",      ggml_cpu_has_vulkan()      ? "true" : "false");
+//     fprintf(stream, "cpu_has_clblast: %s\n",     ggml_cpu_has_clblast()     ? "true" : "false");
+//     fprintf(stream, "cpu_has_kompute: %s\n",     ggml_cpu_has_kompute()     ? "true" : "false");
+//     fprintf(stream, "cpu_has_fma: %s\n",         ggml_cpu_has_fma()         ? "true" : "false");
+//     fprintf(stream, "cpu_has_gpublas: %s\n",     ggml_cpu_has_gpublas()     ? "true" : "false");
+//     fprintf(stream, "cpu_has_neon: %s\n",        ggml_cpu_has_neon()        ? "true" : "false");
+//     fprintf(stream, "cpu_has_f16c: %s\n",        ggml_cpu_has_f16c()        ? "true" : "false");
+//     fprintf(stream, "cpu_has_fp16_va: %s\n",     ggml_cpu_has_fp16_va()     ? "true" : "false");
+//     fprintf(stream, "cpu_has_wasm_simd: %s\n",   ggml_cpu_has_wasm_simd()   ? "true" : "false");
+//     fprintf(stream, "cpu_has_blas: %s\n",        ggml_cpu_has_blas()        ? "true" : "false");
+//     fprintf(stream, "cpu_has_sse3: %s\n",        ggml_cpu_has_sse3()        ? "true" : "false");
+//     fprintf(stream, "cpu_has_vsx: %s\n",         ggml_cpu_has_vsx()         ? "true" : "false");
+//     fprintf(stream, "cpu_has_matmul_int8: %s\n", ggml_cpu_has_matmul_int8() ? "true" : "false");
 
-#ifdef NDEBUG
-    fprintf(stream, "debug: false\n");
-#else
-    fprintf(stream, "debug: true\n");
-#endif // NDEBUG
+// #ifdef NDEBUG
+//     fprintf(stream, "debug: false\n");
+// #else
+//     fprintf(stream, "debug: true\n");
+// #endif // NDEBUG
 
-    fprintf(stream, "model_desc: %s\n", model_desc);
-    fprintf(stream, "n_vocab: %d  # output size of the final layer, 32001 for some models\n", llama_n_vocab(llama_get_model(lctx)));
+//     fprintf(stream, "model_desc: %s\n", model_desc);
+//     fprintf(stream, "n_vocab: %d  # output size of the final layer, 32001 for some models\n", llama_n_vocab(llama_get_model(lctx)));
 
-#ifdef __OPTIMIZE__
-    fprintf(stream, "optimize: true\n");
-#else
-    fprintf(stream, "optimize: false\n");
-#endif // __OPTIMIZE__
+// #ifdef __OPTIMIZE__
+//     fprintf(stream, "optimize: true\n");
+// #else
+//     fprintf(stream, "optimize: false\n");
+// #endif // __OPTIMIZE__
 
-    fprintf(stream, "time: %s\n", timestamp.c_str());
+//     fprintf(stream, "time: %s\n", timestamp.c_str());
 
-    fprintf(stream, "\n");
-    fprintf(stream, "###############\n");
-    fprintf(stream, "# User Inputs #\n");
-    fprintf(stream, "###############\n");
-    fprintf(stream, "\n");
+//     fprintf(stream, "\n");
+//     fprintf(stream, "###############\n");
+//     fprintf(stream, "# User Inputs #\n");
+//     fprintf(stream, "###############\n");
+//     fprintf(stream, "\n");
 
-    fprintf(stream, "alias: %s # default: unknown\n", params.model_alias.c_str());
-    fprintf(stream, "batch_size: %d # default: 512\n", params.n_batch);
-    dump_string_yaml_multiline(stream, "cfg_negative_prompt", sparams.cfg_negative_prompt.c_str());
-    fprintf(stream, "cfg_scale: %f # default: 1.0\n", sparams.cfg_scale);
-    fprintf(stream, "chunks: %d # default: -1 (unlimited)\n", params.n_chunks);
-    fprintf(stream, "color: %s # default: false\n", params.use_color ? "true" : "false");
-    fprintf(stream, "ctx_size: %d # default: 512\n", params.n_ctx);
-    fprintf(stream, "escape: %s # default: false\n", params.escape ? "true" : "false");
-    fprintf(stream, "file: # never logged, see prompt instead. Can still be specified for input.\n");
-    fprintf(stream, "frequency_penalty: %f # default: 0.0 \n", sparams.penalty_freq);
-    dump_string_yaml_multiline(stream, "grammar", sparams.grammar.c_str());
-    fprintf(stream, "grammar-file: # never logged, see grammar instead. Can still be specified for input.\n");
-    fprintf(stream, "hellaswag: %s # default: false\n", params.hellaswag ? "true" : "false");
-    fprintf(stream, "hellaswag_tasks: %zu # default: 400\n", params.hellaswag_tasks);
+//     fprintf(stream, "alias: %s # default: unknown\n", params.model_alias.c_str());
+//     fprintf(stream, "batch_size: %d # default: 512\n", params.n_batch);
+//     dump_string_yaml_multiline(stream, "cfg_negative_prompt", sparams.cfg_negative_prompt.c_str());
+//     fprintf(stream, "cfg_scale: %f # default: 1.0\n", sparams.cfg_scale);
+//     fprintf(stream, "chunks: %d # default: -1 (unlimited)\n", params.n_chunks);
+//     fprintf(stream, "color: %s # default: false\n", params.use_color ? "true" : "false");
+//     fprintf(stream, "ctx_size: %d # default: 512\n", params.n_ctx);
+//     fprintf(stream, "escape: %s # default: false\n", params.escape ? "true" : "false");
+//     fprintf(stream, "file: # never logged, see prompt instead. Can still be specified for input.\n");
+//     fprintf(stream, "frequency_penalty: %f # default: 0.0 \n", sparams.penalty_freq);
+//     dump_string_yaml_multiline(stream, "grammar", sparams.grammar.c_str());
+//     fprintf(stream, "grammar-file: # never logged, see grammar instead. Can still be specified for input.\n");
+//     fprintf(stream, "hellaswag: %s # default: false\n", params.hellaswag ? "true" : "false");
+//     fprintf(stream, "hellaswag_tasks: %zu # default: 400\n", params.hellaswag_tasks);
 
-    const auto logit_bias_eos = sparams.logit_bias.find(llama_token_eos(llama_get_model(lctx)));
-    const bool ignore_eos = logit_bias_eos != sparams.logit_bias.end() && logit_bias_eos->second == -INFINITY;
-    fprintf(stream, "ignore_eos: %s # default: false\n", ignore_eos ? "true" : "false");
+//     const auto logit_bias_eos = sparams.logit_bias.find(llama_token_eos(llama_get_model(lctx)));
+//     const bool ignore_eos = logit_bias_eos != sparams.logit_bias.end() && logit_bias_eos->second == -INFINITY;
+//     fprintf(stream, "ignore_eos: %s # default: false\n", ignore_eos ? "true" : "false");
 
-    dump_string_yaml_multiline(stream, "in_prefix", params.input_prefix.c_str());
-    fprintf(stream, "in_prefix_bos: %s # default: false\n", params.input_prefix_bos ? "true" : "false");
-    dump_string_yaml_multiline(stream, "in_suffix", params.input_prefix.c_str());
-    fprintf(stream, "instruct: %s # default: false\n", params.instruct ? "true" : "false");
-    fprintf(stream, "interactive: %s # default: false\n", params.interactive ? "true" : "false");
-    fprintf(stream, "interactive_first: %s # default: false\n", params.interactive_first ? "true" : "false");
-    fprintf(stream, "keep: %d # default: 0\n", params.n_keep);
-    fprintf(stream, "logdir: %s # default: unset (no logging)\n", params.logdir.c_str());
+//     dump_string_yaml_multiline(stream, "in_prefix", params.input_prefix.c_str());
+//     fprintf(stream, "in_prefix_bos: %s # default: false\n", params.input_prefix_bos ? "true" : "false");
+//     dump_string_yaml_multiline(stream, "in_suffix", params.input_prefix.c_str());
+//     fprintf(stream, "instruct: %s # default: false\n", params.instruct ? "true" : "false");
+//     fprintf(stream, "interactive: %s # default: false\n", params.interactive ? "true" : "false");
+//     fprintf(stream, "interactive_first: %s # default: false\n", params.interactive_first ? "true" : "false");
+//     fprintf(stream, "keep: %d # default: 0\n", params.n_keep);
+//     fprintf(stream, "logdir: %s # default: unset (no logging)\n", params.logdir.c_str());
 
-    fprintf(stream, "logit_bias:\n");
-    for (std::pair<llama_token, float> lb : sparams.logit_bias) {
-        if (ignore_eos && lb.first == logit_bias_eos->first) {
-            continue;
-        }
-        fprintf(stream, "  %d: %f", lb.first, lb.second);
-    }
+//     fprintf(stream, "logit_bias:\n");
+//     for (std::pair<llama_token, float> lb : sparams.logit_bias) {
+//         if (ignore_eos && lb.first == logit_bias_eos->first) {
+//             continue;
+//         }
+//         fprintf(stream, "  %d: %f", lb.first, lb.second);
+//     }
 
-    fprintf(stream, "lora:\n");
-    for (std::tuple<std::string, float> la : params.lora_adapter) {
-        if (std::get<1>(la) != 1.0f) {
-            continue;
-        }
-        fprintf(stream, "  - %s\n", std::get<0>(la).c_str());
-    }
-    fprintf(stream, "lora_scaled:\n");
-    for (std::tuple<std::string, float> la : params.lora_adapter) {
-        if (std::get<1>(la) == 1.0f) {
-            continue;
-        }
-        fprintf(stream, "  - %s: %f\n", std::get<0>(la).c_str(), std::get<1>(la));
-    }
-    fprintf(stream, "lora_base: %s\n", params.lora_base.c_str());
-    fprintf(stream, "main_gpu: %d # default: 0\n", params.main_gpu);
-    fprintf(stream, "min_keep: %d # default: 0 (disabled)\n", sparams.min_keep);
-    fprintf(stream, "mirostat: %d # default: 0 (disabled)\n", sparams.mirostat);
-    fprintf(stream, "mirostat_ent: %f # default: 5.0\n", sparams.mirostat_tau);
-    fprintf(stream, "mirostat_lr: %f # default: 0.1\n", sparams.mirostat_eta);
-    fprintf(stream, "mlock: %s # default: false\n", params.use_mlock ? "true" : "false");
-    fprintf(stream, "model: %s # default: models/7B/ggml-model.bin\n", params.model.c_str());
-    fprintf(stream, "model_draft: %s # default:\n", params.model_draft.c_str());
-    fprintf(stream, "multiline_input: %s # default: false\n", params.multiline_input ? "true" : "false");
-    fprintf(stream, "n_gpu_layers: %d # default: -1\n", params.n_gpu_layers);
-    fprintf(stream, "n_predict: %d # default: -1 (unlimited)\n", params.n_predict);
-    fprintf(stream, "n_probs: %d # only used by server binary, default: 0\n", sparams.n_probs);
-    fprintf(stream, "no_mmap: %s # default: false\n", !params.use_mmap ? "true" : "false");
-    fprintf(stream, "penalize_nl: %s # default: false\n", sparams.penalize_nl ? "true" : "false");
-    fprintf(stream, "ppl_output_type: %d # default: 0\n", params.ppl_output_type);
-    fprintf(stream, "ppl_stride: %d # default: 0\n", params.ppl_stride);
-    fprintf(stream, "presence_penalty: %f # default: 0.0\n", sparams.penalty_present);
-    dump_string_yaml_multiline(stream, "prompt", params.prompt.c_str());
-    fprintf(stream, "prompt_cache: %s\n", params.path_prompt_cache.c_str());
-    fprintf(stream, "prompt_cache_all: %s # default: false\n", params.prompt_cache_all ? "true" : "false");
-    fprintf(stream, "prompt_cache_ro: %s # default: false\n", params.prompt_cache_ro ? "true" : "false");
-    dump_vector_int_yaml(stream, "prompt_tokens", prompt_tokens);
-    fprintf(stream, "random_prompt: %s # default: false\n", params.random_prompt ? "true" : "false");
-    fprintf(stream, "repeat_penalty: %f # default: 1.1\n", sparams.penalty_repeat);
+//     fprintf(stream, "lora:\n");
+//     for (std::tuple<std::string, float> la : params.lora_adapter) {
+//         if (std::get<1>(la) != 1.0f) {
+//             continue;
+//         }
+//         fprintf(stream, "  - %s\n", std::get<0>(la).c_str());
+//     }
+//     fprintf(stream, "lora_scaled:\n");
+//     for (std::tuple<std::string, float> la : params.lora_adapter) {
+//         if (std::get<1>(la) == 1.0f) {
+//             continue;
+//         }
+//         fprintf(stream, "  - %s: %f\n", std::get<0>(la).c_str(), std::get<1>(la));
+//     }
+//     fprintf(stream, "lora_base: %s\n", params.lora_base.c_str());
+//     fprintf(stream, "main_gpu: %d # default: 0\n", params.main_gpu);
+//     fprintf(stream, "min_keep: %d # default: 0 (disabled)\n", sparams.min_keep);
+//     fprintf(stream, "mirostat: %d # default: 0 (disabled)\n", sparams.mirostat);
+//     fprintf(stream, "mirostat_ent: %f # default: 5.0\n", sparams.mirostat_tau);
+//     fprintf(stream, "mirostat_lr: %f # default: 0.1\n", sparams.mirostat_eta);
+//     fprintf(stream, "mlock: %s # default: false\n", params.use_mlock ? "true" : "false");
+//     fprintf(stream, "model: %s # default: models/7B/ggml-model.bin\n", params.model.c_str());
+//     fprintf(stream, "model_draft: %s # default:\n", params.model_draft.c_str());
+//     fprintf(stream, "multiline_input: %s # default: false\n", params.multiline_input ? "true" : "false");
+//     fprintf(stream, "n_gpu_layers: %d # default: -1\n", params.n_gpu_layers);
+//     fprintf(stream, "n_predict: %d # default: -1 (unlimited)\n", params.n_predict);
+//     fprintf(stream, "n_probs: %d # only used by server binary, default: 0\n", sparams.n_probs);
+//     fprintf(stream, "no_mmap: %s # default: false\n", !params.use_mmap ? "true" : "false");
+//     fprintf(stream, "penalize_nl: %s # default: false\n", sparams.penalize_nl ? "true" : "false");
+//     fprintf(stream, "ppl_output_type: %d # default: 0\n", params.ppl_output_type);
+//     fprintf(stream, "ppl_stride: %d # default: 0\n", params.ppl_stride);
+//     fprintf(stream, "presence_penalty: %f # default: 0.0\n", sparams.penalty_present);
+//     dump_string_yaml_multiline(stream, "prompt", params.prompt.c_str());
+//     fprintf(stream, "prompt_cache: %s\n", params.path_prompt_cache.c_str());
+//     fprintf(stream, "prompt_cache_all: %s # default: false\n", params.prompt_cache_all ? "true" : "false");
+//     fprintf(stream, "prompt_cache_ro: %s # default: false\n", params.prompt_cache_ro ? "true" : "false");
+//     dump_vector_int_yaml(stream, "prompt_tokens", prompt_tokens);
+//     fprintf(stream, "random_prompt: %s # default: false\n", params.random_prompt ? "true" : "false");
+//     fprintf(stream, "repeat_penalty: %f # default: 1.1\n", sparams.penalty_repeat);
 
-    fprintf(stream, "reverse_prompt:\n");
-    for (std::string ap : params.antiprompt) {
-        size_t pos = 0;
-        while ((pos = ap.find('\n', pos)) != std::string::npos) {
-            ap.replace(pos, 1, "\\n");
-            pos += 1;
-        }
+//     fprintf(stream, "reverse_prompt:\n");
+//     for (std::string ap : params.antiprompt) {
+//         size_t pos = 0;
+//         while ((pos = ap.find('\n', pos)) != std::string::npos) {
+//             ap.replace(pos, 1, "\\n");
+//             pos += 1;
+//         }
 
-        fprintf(stream, "  - %s\n", ap.c_str());
-    }
+//         fprintf(stream, "  - %s\n", ap.c_str());
+//     }
 
-    fprintf(stream, "rope_freq_base: %f # default: 10000.0\n", params.rope_freq_base);
-    fprintf(stream, "rope_freq_scale: %f # default: 1.0\n", params.rope_freq_scale);
-    fprintf(stream, "seed: %u # default: -1 (random seed)\n", params.seed);
-    fprintf(stream, "simple_io: %s # default: false\n", params.simple_io ? "true" : "false");
-    fprintf(stream, "cont_batching: %s # default: false\n", params.cont_batching ? "true" : "false");
-    fprintf(stream, "temp: %f # default: 0.8\n", sparams.temp);
+//     fprintf(stream, "rope_freq_base: %f # default: 10000.0\n", params.rope_freq_base);
+//     fprintf(stream, "rope_freq_scale: %f # default: 1.0\n", params.rope_freq_scale);
+//     fprintf(stream, "seed: %u # default: -1 (random seed)\n", params.seed);
+//     fprintf(stream, "simple_io: %s # default: false\n", params.simple_io ? "true" : "false");
+//     fprintf(stream, "cont_batching: %s # default: false\n", params.cont_batching ? "true" : "false");
+//     fprintf(stream, "temp: %f # default: 0.8\n", sparams.temp);
 
-    const std::vector<float> tensor_split_vector(params.tensor_split, params.tensor_split + llama_max_devices());
-    dump_vector_float_yaml(stream, "tensor_split", tensor_split_vector);
+//     const std::vector<float> tensor_split_vector(params.tensor_split, params.tensor_split + llama_max_devices());
+//     // dump_vector_float_yaml(stream, "tensor_split", tensor_split_vector);
 
-    fprintf(stream, "tfs: %f # default: 1.0\n", sparams.tfs_z);
-    // AB PATCH
-    // fprintf(stream, "threads: %d # default: %u\n", params.n_threads, std::thread::hardware_concurrency());
-    fprintf(stream, "threads: %d # default: %u\n", params.n_threads, 1);
-    fprintf(stream, "top_k: %d # default: 40\n", sparams.top_k);
-    fprintf(stream, "top_p: %f # default: 0.95\n", sparams.top_p);
-    fprintf(stream, "min_p: %f # default: 0.0\n", sparams.min_p);
-    fprintf(stream, "typical_p: %f # default: 1.0\n", sparams.typical_p);
-    fprintf(stream, "verbose_prompt: %s # default: false\n", params.verbose_prompt ? "true" : "false");
-    fprintf(stream, "display_prompt: %s # default: true\n", params.display_prompt ? "true" : "false");
-}
+//     fprintf(stream, "tfs: %f # default: 1.0\n", sparams.tfs_z);
+//     // AB PATCH
+//     // fprintf(stream, "threads: %d # default: %u\n", params.n_threads, std::thread::hardware_concurrency());
+//     fprintf(stream, "threads: %d # default: %u\n", params.n_threads, 1);
+//     fprintf(stream, "top_k: %d # default: 40\n", sparams.top_k);
+//     fprintf(stream, "top_p: %f # default: 0.95\n", sparams.top_p);
+//     fprintf(stream, "min_p: %f # default: 0.0\n", sparams.min_p);
+//     fprintf(stream, "typical_p: %f # default: 1.0\n", sparams.typical_p);
+//     fprintf(stream, "verbose_prompt: %s # default: false\n", params.verbose_prompt ? "true" : "false");
+//     fprintf(stream, "display_prompt: %s # default: true\n", params.display_prompt ? "true" : "false");
+// }
 
 //
 // KV cache utils
