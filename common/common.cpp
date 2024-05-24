@@ -1147,6 +1147,8 @@ bool gpt_params_find_arg(int argc, char ** argv, const std::string & arg, gpt_pa
         return true;
     }
     if (arg == "--check-tensors") {
+        //ICPP
+        IC_API::trap("--check-tensors is not supported, because it requires threading.");
         params.check_tensors = true;
         return true;
     }

@@ -77,19 +77,19 @@
 #include <forward_list>
 #include <fstream>
 #include <functional>
-#include <future>
+//ICPP-no-threading #include <future>
 #include <initializer_list>
 #include <locale>
 #include <map>
 #include <memory>
-// #include <mutex>
+//ICPP-no-threading #include <mutex>
 #include <numeric>
 #include <queue>
 #include <random>
 #include <regex>
 #include <set>
 #include <sstream>
-// #include <thread>
+//ICPP-no-threading #include <thread>
 #include <type_traits>
 #include <unordered_map>
 
@@ -3498,9 +3498,10 @@ struct llama_model_loader {
             file->read_raw(cur->data, ggml_nbytes(cur));
         }
 
-        if (check_tensors && !ggml_validate_row_data(cur->type, cur->data, ggml_nbytes(cur))) {
-            IC_API::trap(std::string("RUNTIME ERROR: ") + format("tensor '%s' has invalid data", ggml_get_name(cur)));
-        }
+        // ICPP - we do not support check_tensors. It requires threading.
+        // if (check_tensors && !ggml_validate_row_data(cur->type, cur->data, ggml_nbytes(cur))) {
+        //     IC_API::trap(std::string("RUNTIME ERROR: ") + format("tensor '%s' has invalid data", ggml_get_name(cur)));
+        // }
     }
 
     size_t size_done = 0;
@@ -3517,7 +3518,8 @@ struct llama_model_loader {
         GGML_ASSERT(size_data != 0 && "call init_mappings() first");
 
         std::vector<no_init<uint8_t>> read_buf;
-        std::vector<std::future<std::pair<ggml_tensor *, bool>>> validation_result;
+        // ICPP - we do not support check_tensors. It requires threading.
+        // std::vector<std::future<std::pair<ggml_tensor *, bool>>> validation_result;
 
         for (struct ggml_tensor * cur = ggml_get_first_tensor(ctx); cur != NULL; cur = ggml_get_next_tensor(ctx, cur)) {
             const auto * weight = get_weight(ggml_get_name(cur));
@@ -3542,11 +3544,12 @@ struct llama_model_loader {
                 }
                 uint8_t * data = (uint8_t *) mapping->addr + weight->offs;
 
-                if (check_tensors) {
-                    validation_result.emplace_back(std::async(std::launch::async, [cur, data, n_size] {
-                        return std::make_pair(cur, ggml_validate_row_data(cur->type, data, n_size));
-                    }));
-                }
+                // ICPP - we do not support check_tensors. It requires threading.
+                // if (check_tensors) {
+                //     validation_result.emplace_back(std::async(std::launch::async, [cur, data, n_size] {
+                //         return std::make_pair(cur, ggml_validate_row_data(cur->type, data, n_size));
+                //     }));
+                // }
 
                 GGML_ASSERT(buf_mmap || cur->data); // either we have a buffer to allocate the tensor in, or it is already allocated
                 if (buf_mmap && cur->data == nullptr) {
@@ -3568,37 +3571,40 @@ struct llama_model_loader {
                 if (ggml_backend_buffer_is_host(cur->buffer)) {
                     file->seek(weight->offs, SEEK_SET);
                     file->read_raw(cur->data, n_size);
-                    if (check_tensors) {
-                        validation_result.emplace_back(std::async(std::launch::async, [cur, n_size] {
-                            return std::make_pair(cur, ggml_validate_row_data(cur->type, cur->data, n_size));
-                        }));
-                    }
+                    // ICPP - we do not support check_tensors. It requires threading.
+                    // if (check_tensors) {
+                    //     validation_result.emplace_back(std::async(std::launch::async, [cur, n_size] {
+                    //         return std::make_pair(cur, ggml_validate_row_data(cur->type, cur->data, n_size));
+                    //     }));
+                    // }
                 } else {
                     read_buf.resize(n_size);
                     file->seek(weight->offs, SEEK_SET);
                     file->read_raw(read_buf.data(), n_size);
                     ggml_backend_tensor_set(cur, read_buf.data(), 0, n_size);
-                    if (check_tensors && !ggml_validate_row_data(cur->type, read_buf.data(), n_size)) {
-                        IC_API::trap(std::string("RUNTIME ERROR: ") + format("tensor '%s' has invalid data", ggml_get_name(cur)));
-                    }
+                    // ICPP - we do not support check_tensors. It requires threading.
+                    // if (check_tensors && !ggml_validate_row_data(cur->type, read_buf.data(), n_size)) {
+                    //     IC_API::trap(std::string("RUNTIME ERROR: ") + format("tensor '%s' has invalid data", ggml_get_name(cur)));
+                    // }
                 }
             }
 
             size_done += n_size;
         }
 
+        // ICPP - we do not support check_tensors. It requires threading.
         // check validation results
-        bool validation_failed = false;
-        for (auto & future : validation_result) {
-            auto result = future.get();
-            if (!result.second) {
-                LLAMA_LOG_ERROR("%s: tensor '%s' has invalid data\n", __func__, ggml_get_name(result.first));
-                validation_failed = true;
-            }
-        }
-        if (validation_failed) {
-            IC_API::trap(std::string("RUNTIME ERROR: ") + "found tensors with invalid data");
-        }
+        // bool validation_failed = false;
+        // for (auto & future : validation_result) {
+        //     auto result = future.get();
+        //     if (!result.second) {
+        //         LLAMA_LOG_ERROR("%s: tensor '%s' has invalid data\n", __func__, ggml_get_name(result.first));
+        //         validation_failed = true;
+        //     }
+        // }
+        // if (validation_failed) {
+        //     IC_API::trap(std::string("RUNTIME ERROR: ") + "found tensors with invalid data");
+        // }
 
         // check if this is the last call and do final cleanup
         if (size_done >= size_data) {
