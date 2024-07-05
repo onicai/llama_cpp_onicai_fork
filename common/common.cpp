@@ -2250,13 +2250,16 @@ std::tuple<struct llama_model *, struct llama_context *> llama_init_from_gpt_par
 
     llama_model * model = nullptr;
 
-    // if (!params.hf_repo.empty() && !params.hf_file.empty()) {
-    //     model = llama_load_model_from_hf(params.hf_repo.c_str(), params.hf_file.c_str(), params.model.c_str(), mparams);
-    // } else if (!params.model_url.empty()) {
-    //     model = llama_load_model_from_url(params.model_url.c_str(), params.model.c_str(), mparams);
-    // } else {
-    //     model = llama_load_model_from_file(params.model.c_str(), mparams);
-    // }
+    if (!params.hf_repo.empty() && !params.hf_file.empty()) {
+        std::cout << "calling llama_load_model_from_hf" << std::endl;
+        model = llama_load_model_from_hf(params.hf_repo.c_str(), params.hf_file.c_str(), params.model.c_str(), mparams);
+    } else if (!params.model_url.empty()) {
+        std::cout << "calling llama_load_model_from_url" << std::endl;
+        model = llama_load_model_from_url(params.model_url.c_str(), params.model.c_str(), mparams);
+    } else {
+        std::cout << "calling llama_load_model_from_file" << std::endl;
+        model = llama_load_model_from_file(params.model.c_str(), mparams);
+    }
 
     if (model == NULL) {
         fprintf(stderr, "%s: error: failed to load model '%s'\n", __func__, params.model.c_str());
