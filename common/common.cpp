@@ -51,13 +51,13 @@
 #pragma warning(disable: 4244 4267) // possible loss of data
 #endif
 
-// #if (defined(GGML_USE_CUDA) || defined(GGML_USE_SYCL))
-// #define GGML_USE_CUDA_SYCL
-// #endif
+#if (defined(GGML_USE_CUDA) || defined(GGML_USE_SYCL))
+#define GGML_USE_CUDA_SYCL
+#endif
 
-// #if (defined(GGML_USE_CUDA) || defined(GGML_USE_SYCL)) || defined(GGML_USE_VULKAN)
-// #define GGML_USE_CUDA_SYCL_VULKAN
-// #endif
+#if (defined(GGML_USE_CUDA) || defined(GGML_USE_SYCL)) || defined(GGML_USE_VULKAN)
+#define GGML_USE_CUDA_SYCL_VULKAN
+#endif
 
 #if defined(LLAMA_USE_CURL)
 #ifdef __linux__
