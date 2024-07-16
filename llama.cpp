@@ -93,6 +93,9 @@
 #include <type_traits>
 #include <unordered_map>
 
+//ICPP-PATCH - Added iostream, using std::cout for debug prints
+#include <iostream>
+
 #if defined(_MSC_VER)
 #pragma warning(disable: 4244 4267) // possible loss of data
 #endif
@@ -167,12 +170,12 @@ static bool is_float_close(float a, float b, float abs_tol) {
     return std::fabs(b - a) <= abs_tol;
 }
 
-// static void zeros(std::ofstream & file, size_t n) {
-//     char zero = 0;
-//     for (size_t i = 0; i < n; ++i) {
-//         file.write(&zero, 1);
-//     }
-// }
+static void zeros(std::ofstream & file, size_t n) {
+    char zero = 0;
+    for (size_t i = 0; i < n; ++i) {
+        file.write(&zero, 1);
+    }
+}
 
 LLAMA_ATTRIBUTE_FORMAT(1, 2)
 static std::string format(const char * fmt, ...) {
@@ -3027,9 +3030,10 @@ struct llama_model_loader {
 
     llama_model_loader(const std::string & fname, bool use_mmap, bool check_tensors, const struct llama_model_kv_override * param_overrides_p) {
         int trace = 0;
-        if (getenv("LLAMA_TRACE")) {
-            trace = atoi(getenv("LLAMA_TRACE"));
-        }
+        // icpp-no-getenv
+        // if (getenv("LLAMA_TRACE")) {
+        //     trace = atoi(getenv("LLAMA_TRACE"));
+        // }
 
         if (param_overrides_p != nullptr) {
             for (const struct llama_model_kv_override *p = param_overrides_p; p->key[0] != 0; p++) {
