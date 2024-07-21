@@ -233,7 +233,8 @@
 #define GGML_MAX_NAME           64
 #endif
 #define GGML_MAX_OP_PARAMS      64
-#define GGML_DEFAULT_N_THREADS  4
+//ICPP-no-threading #define GGML_DEFAULT_N_THREADS  4
+#define GGML_DEFAULT_N_THREADS  1
 #define GGML_DEFAULT_GRAPH_SIZE 2048
 #if UINTPTR_MAX == 0xFFFFFFFF
     #define GGML_MEM_ALIGN 4

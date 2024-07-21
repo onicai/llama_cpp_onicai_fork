@@ -1,4 +1,5 @@
-﻿#include "unicode.h"
+﻿#include "ic_api.h"
+#include "unicode.h"
 #include "unicode-data.h"
 
 #include <cassert>
@@ -27,11 +28,11 @@ static uint32_t unicode_cpt_from_utf8(const std::string & utf8, size_t & offset)
         return result;
     }
     if (!(utf8[offset + 0] & 0x40)) {
-        throw std::invalid_argument("invalid character");
+        IC_API::trap(std::string("INVALID ARGUMENT: ") + "invalid character");
     }
     if (!(utf8[offset + 0] & 0x20)) {
         if (offset + 1 >= utf8.size() || ! ((utf8[offset + 1] & 0xc0) == 0x80)) {
-            throw std::invalid_argument("invalid character");
+            IC_API::trap(std::string("INVALID ARGUMENT: ") + "invalid character");
         }
         auto result = ((utf8[offset + 0] & 0x1f) << 6) | (utf8[offset + 1] & 0x3f);
         offset += 2;
@@ -39,7 +40,7 @@ static uint32_t unicode_cpt_from_utf8(const std::string & utf8, size_t & offset)
     }
     if (!(utf8[offset + 0] & 0x10)) {
         if (offset + 2 >= utf8.size() || ! ((utf8[offset + 1] & 0xc0) == 0x80) || ! ((utf8[offset + 2] & 0xc0) == 0x80)) {
-            throw std::invalid_argument("invalid character");
+            IC_API::trap(std::string("INVALID ARGUMENT: ") + "invalid character");
         }
         auto result = ((utf8[offset + 0] & 0x0f) << 12) | ((utf8[offset + 1] & 0x3f) << 6) | (utf8[offset + 2] & 0x3f);
         offset += 3;
@@ -47,13 +48,14 @@ static uint32_t unicode_cpt_from_utf8(const std::string & utf8, size_t & offset)
     }
     if (!(utf8[offset + 0] & 0x08)) {
         if (offset + 3 >= utf8.size() || ! ((utf8[offset + 1] & 0xc0) == 0x80) || ! ((utf8[offset + 2] & 0xc0) == 0x80) || !((utf8[offset + 3] & 0xc0) == 0x80)) {
-            throw std::invalid_argument("invalid character");
+            IC_API::trap(std::string("INVALID ARGUMENT: ") + "invalid character");
         }
         auto result = ((utf8[offset + 0] & 0x07) << 18) | ((utf8[offset + 1] & 0x3f) << 12) | ((utf8[offset + 2] & 0x3f) << 6) | (utf8[offset + 3] & 0x3f);
         offset += 4;
         return result;
     }
-    throw std::invalid_argument("invalid string");
+    IC_API::trap(std::string("INVALID ARGUMENT: ") + "invalid string");
+    return 0xFFFFFFFF; // patch by AB. Will never get here, but must return something to compile
 }
 
 static std::vector<uint16_t> unicode_cpt_to_utf16(uint32_t cp) {
@@ -66,7 +68,7 @@ static std::vector<uint16_t> unicode_cpt_to_utf16(uint32_t cp) {
         result.emplace_back(0xdc00 | ((cp - 0x10000) & 0x03ff));
     }
     else {
-        throw std::invalid_argument("invalid cpt");
+        IC_API::trap(std::string("INVALID ARGUMENT: ") + "invalid cpt");
     }
     return result;
 }
@@ -89,7 +91,7 @@ static uint32_t cpt_from_utf16(const std::vector<uint16_t> & utf16, size_t & off
     }
 
     if (offset + 1 >= utf16.size() || !((utf16[1] & 0xdc00) == 0xdc00)) {
-        throw std::invalid_argument("invalid character");
+        IC_API::trap(std::string("INVALID ARGUMENT: ") + "invalid character");
     }
 
     auto result = 0x10000 + (((utf16[0] & 0x03ff) << 10) | (utf16[1] & 0x03ff));
@@ -219,7 +221,7 @@ std::string unicode_cpt_to_utf8(uint32_t cp) {
         result.push_back(0x80 | (cp & 0x3f));
     }
     else {
-        throw std::invalid_argument("invalid codepoint");
+        IC_API::trap(std::string("INVALID ARGUMENT: ") + "invalid codepoint");
     }
     return result;
 }

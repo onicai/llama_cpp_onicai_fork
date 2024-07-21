@@ -1,3 +1,4 @@
+#include "ic_api.h"
 #include "common.h"
 #include "json.hpp"
 #include "json-schema-to-grammar.h"
@@ -73,111 +74,113 @@
 using json = nlohmann::ordered_json;
 
 int32_t get_num_physical_cores() {
-#ifdef __linux__
-    // enumerate the set of thread siblings, num entries is num cores
-    std::unordered_set<std::string> siblings;
-    for (uint32_t cpu=0; cpu < UINT32_MAX; ++cpu) {
-        std::ifstream thread_siblings("/sys/devices/system/cpu"
-            + std::to_string(cpu) + "/topology/thread_siblings");
-        if (!thread_siblings.is_open()) {
-            break; // no more cpus
-        }
-        std::string line;
-        if (std::getline(thread_siblings, line)) {
-            siblings.insert(line);
-        }
-    }
-    if (!siblings.empty()) {
-        return static_cast<int32_t>(siblings.size());
-    }
-#elif defined(__APPLE__) && defined(__MACH__)
-    int32_t num_physical_cores;
-    size_t len = sizeof(num_physical_cores);
-    int result = sysctlbyname("hw.perflevel0.physicalcpu", &num_physical_cores, &len, NULL, 0);
-    if (result == 0) {
-        return num_physical_cores;
-    }
-    result = sysctlbyname("hw.physicalcpu", &num_physical_cores, &len, NULL, 0);
-    if (result == 0) {
-        return num_physical_cores;
-    }
-#elif defined(_WIN32)
-    //TODO: Implement
-#endif
-    unsigned int n_threads = std::thread::hardware_concurrency();
+// #ifdef __linux__
+//     // enumerate the set of thread siblings, num entries is num cores
+//     std::unordered_set<std::string> siblings;
+//     for (uint32_t cpu=0; cpu < UINT32_MAX; ++cpu) {
+//         std::ifstream thread_siblings("/sys/devices/system/cpu"
+//             + std::to_string(cpu) + "/topology/thread_siblings");
+//         if (!thread_siblings.is_open()) {
+//             break; // no more cpus
+//         }
+//         std::string line;
+//         if (std::getline(thread_siblings, line)) {
+//             siblings.insert(line);
+//         }
+//     }
+//     if (!siblings.empty()) {
+//         return static_cast<int32_t>(siblings.size());
+//     }
+// #elif defined(__APPLE__) && defined(__MACH__)
+//     int32_t num_physical_cores;
+//     size_t len = sizeof(num_physical_cores);
+//     int result = sysctlbyname("hw.perflevel0.physicalcpu", &num_physical_cores, &len, NULL, 0);
+//     if (result == 0) {
+//         return num_physical_cores;
+//     }
+//     result = sysctlbyname("hw.physicalcpu", &num_physical_cores, &len, NULL, 0);
+//     if (result == 0) {
+//         return num_physical_cores;
+//     }
+// #elif defined(_WIN32)
+//     //TODO: Implement
+// #endif
+    // ICPP-PATCH
+    // unsigned int n_threads = std::thread::hardware_concurrency(); 
+    unsigned int n_threads = 1;
     return n_threads > 0 ? (n_threads <= 4 ? n_threads : n_threads / 2) : 4;
 }
 
-#if defined(__x86_64__) && defined(__linux__) && !defined(__ANDROID__)
-#include <pthread.h>
+// #if defined(__x86_64__) && defined(__linux__) && !defined(__ANDROID__)
+// #include <pthread.h>
 
-static void cpuid(unsigned leaf, unsigned subleaf,
-                  unsigned *eax, unsigned *ebx, unsigned *ecx, unsigned *edx) {
-    __asm__("movq\t%%rbx,%%rsi\n\t"
-            "cpuid\n\t"
-            "xchgq\t%%rbx,%%rsi"
-            : "=a"(*eax), "=S"(*ebx), "=c"(*ecx), "=d"(*edx)
-            : "0"(leaf), "2"(subleaf));
-}
+// static void cpuid(unsigned leaf, unsigned subleaf,
+//                   unsigned *eax, unsigned *ebx, unsigned *ecx, unsigned *edx) {
+//     __asm__("movq\t%%rbx,%%rsi\n\t"
+//             "cpuid\n\t"
+//             "xchgq\t%%rbx,%%rsi"
+//             : "=a"(*eax), "=S"(*ebx), "=c"(*ecx), "=d"(*edx)
+//             : "0"(leaf), "2"(subleaf));
+// }
 
-static int pin_cpu(int cpu) {
-    cpu_set_t mask;
-    CPU_ZERO(&mask);
-    CPU_SET(cpu, &mask);
-    return pthread_setaffinity_np(pthread_self(), sizeof(mask), &mask);
-}
+// static int pin_cpu(int cpu) {
+//     cpu_set_t mask;
+//     CPU_ZERO(&mask);
+//     CPU_SET(cpu, &mask);
+//     return pthread_setaffinity_np(pthread_self(), sizeof(mask), &mask);
+// }
 
-static bool is_hybrid_cpu(void) {
-    unsigned eax, ebx, ecx, edx;
-    cpuid(7, 0, &eax, &ebx, &ecx, &edx);
-    return !!(edx & (1u << 15));
-}
+// static bool is_hybrid_cpu(void) {
+//     unsigned eax, ebx, ecx, edx;
+//     cpuid(7, 0, &eax, &ebx, &ecx, &edx);
+//     return !!(edx & (1u << 15));
+// }
 
-static bool is_running_on_efficiency_core(void) {
-    unsigned eax, ebx, ecx, edx;
-    cpuid(0x1a, 0, &eax, &ebx, &ecx, &edx);
-    int intel_atom = 0x20;
-    int core_type = (eax & 0xff000000u) >> 24;
-    return core_type == intel_atom;
-}
+// static bool is_running_on_efficiency_core(void) {
+//     unsigned eax, ebx, ecx, edx;
+//     cpuid(0x1a, 0, &eax, &ebx, &ecx, &edx);
+//     int intel_atom = 0x20;
+//     int core_type = (eax & 0xff000000u) >> 24;
+//     return core_type == intel_atom;
+// }
 
-static int count_math_cpus(int cpu_count) {
-    int result = 0;
-    for (int cpu = 0; cpu < cpu_count; ++cpu) {
-        if (pin_cpu(cpu)) {
-            return -1;
-        }
-        if (is_running_on_efficiency_core()) {
-            continue; // efficiency cores harm lockstep threading
-        }
-        ++cpu; // hyperthreading isn't useful for linear algebra
-        ++result;
-    }
-    return result;
-}
+// static int count_math_cpus(int cpu_count) {
+//     int result = 0;
+//     for (int cpu = 0; cpu < cpu_count; ++cpu) {
+//         if (pin_cpu(cpu)) {
+//             return -1;
+//         }
+//         if (is_running_on_efficiency_core()) {
+//             continue; // efficiency cores harm lockstep threading
+//         }
+//         ++cpu; // hyperthreading isn't useful for linear algebra
+//         ++result;
+//     }
+//     return result;
+// }
 
-#endif // __x86_64__ && __linux__
+// #endif // __x86_64__ && __linux__
 
 /**
  * Returns number of CPUs on system that are useful for math.
  */
 int get_math_cpu_count() {
-#if defined(__x86_64__) && defined(__linux__) && !defined(__ANDROID__)
-    int cpu_count = sysconf(_SC_NPROCESSORS_ONLN);
-    if (cpu_count < 1) {
-        return get_num_physical_cores();
-    }
-    if (is_hybrid_cpu()) {
-        cpu_set_t affinity;
-        if (!pthread_getaffinity_np(pthread_self(), sizeof(affinity), &affinity)) {
-            int result = count_math_cpus(cpu_count);
-            pthread_setaffinity_np(pthread_self(), sizeof(affinity), &affinity);
-            if (result > 0) {
-                return result;
-            }
-        }
-    }
-#endif
+// #if defined(__x86_64__) && defined(__linux__) && !defined(__ANDROID__)
+//     int cpu_count = sysconf(_SC_NPROCESSORS_ONLN);
+//     if (cpu_count < 1) {
+//         return get_num_physical_cores();
+//     }
+//     if (is_hybrid_cpu()) {
+//         cpu_set_t affinity;
+//         if (!pthread_getaffinity_np(pthread_self(), sizeof(affinity), &affinity)) {
+//             int result = count_math_cpus(cpu_count);
+//             pthread_setaffinity_np(pthread_self(), sizeof(affinity), &affinity);
+//             if (result > 0) {
+//                 return result;
+//             }
+//         }
+//     }
+// #endif
     return get_num_physical_cores();
 }
 
@@ -220,17 +223,17 @@ void process_escapes(std::string & input) {
 
 bool gpt_params_parse(int argc, char ** argv, gpt_params & params) {
     bool result = true;
-    try {
+    // try {
         if (!gpt_params_parse_ex(argc, argv, params)) {
             gpt_print_usage(argc, argv, gpt_params());
             exit(0);
         }
-    }
-    catch (const std::invalid_argument & ex) {
-        fprintf(stderr, "%s\n", ex.what());
-        gpt_print_usage(argc, argv, gpt_params());
-        exit(1);
-    }
+    // }
+    // catch (const std::invalid_argument & ex) {
+    //     fprintf(stderr, "%s\n", ex.what());
+    //     gpt_print_usage(argc, argv, gpt_params());
+    //     exit(1);
+    // }
     return result;
 }
 
@@ -300,7 +303,9 @@ bool gpt_params_find_arg(int argc, char ** argv, const std::string & arg, gpt_pa
         }
         params.n_threads = std::stoi(argv[i]);
         if (params.n_threads <= 0) {
-            params.n_threads = std::thread::hardware_concurrency();
+            // AB PATCH
+            // params.n_threads = std::thread::hardware_concurrency();
+            params.n_threads = 1;
         }
         return true;
     }
@@ -311,7 +316,9 @@ bool gpt_params_find_arg(int argc, char ** argv, const std::string & arg, gpt_pa
         }
         params.n_threads_batch = std::stoi(argv[i]);
         if (params.n_threads_batch <= 0) {
-            params.n_threads_batch = std::thread::hardware_concurrency();
+            // AB PATCH
+            // params.n_threads_batch = std::thread::hardware_concurrency();
+            params.n_threads_batch = 1;
         }
         return true;
     }
@@ -322,7 +329,9 @@ bool gpt_params_find_arg(int argc, char ** argv, const std::string & arg, gpt_pa
         }
         params.n_threads_draft = std::stoi(argv[i]);
         if (params.n_threads_draft <= 0) {
-            params.n_threads_draft = std::thread::hardware_concurrency();
+            // AB PATCH
+            // params.n_threads_draft = std::thread::hardware_concurrency();
+            params.n_threads_draft = 1;
         }
         return true;
     }
@@ -333,7 +342,9 @@ bool gpt_params_find_arg(int argc, char ** argv, const std::string & arg, gpt_pa
         }
         params.n_threads_batch_draft = std::stoi(argv[i]);
         if (params.n_threads_batch_draft <= 0) {
-            params.n_threads_batch_draft = std::thread::hardware_concurrency();
+            // AB PATCH
+            // params.n_threads_batch_draft = std::thread::hardware_concurrency();
+            params.n_threads_batch_draft = 1;
         }
         return true;
     }
@@ -1136,6 +1147,8 @@ bool gpt_params_find_arg(int argc, char ** argv, const std::string & arg, gpt_pa
         return true;
     }
     if (arg == "--check-tensors") {
+        //ICPP
+        IC_API::trap("--check-tensors is not supported, because it requires threading.");
         params.check_tensors = true;
         return true;
     }
@@ -1204,18 +1217,20 @@ bool gpt_params_find_arg(int argc, char ** argv, const std::string & arg, gpt_pa
         llama_token key;
         char sign;
         std::string value_str;
-        try {
+        // try {
             if (ss >> key && ss >> sign && std::getline(ss, value_str) && (sign == '+' || sign == '-')) {
                 sparams.logit_bias[key] = std::stof(value_str) * ((sign == '-') ? -1.0f : 1.0f);
             }
             else {
-                throw std::exception();
+                // throw std::exception();
+                invalid_param = true; // AB PATCH
+                return true; // AB PATCH
             }
-        }
-        catch (const std::exception&) {
-            invalid_param = true;
-            return true;
-        }
+        // }
+        // catch (const std::exception&) {
+        //     invalid_param = true;
+        //     return true;
+        // }
         return true;
     }
     if (arg == "-h" || arg == "--help") {
@@ -1337,19 +1352,19 @@ bool gpt_params_parse_ex(int argc, char ** argv, gpt_params & params) {
         }
 
         if (!gpt_params_find_arg(argc, argv, arg, params, i, invalid_param)) {
-            throw std::invalid_argument("error: unknown argument: " + arg);
+            IC_API::trap(std::string("INVALID ARGUMENT: ") + "error: unknown argument: " + arg);
         }
     }
 
     if (invalid_param) {
-        throw std::invalid_argument("error: invalid parameter for argument: " + arg);
+        IC_API::trap(std::string("INVALID ARGUMENT: ") + "error: invalid parameter for argument: " + arg);
     }
 
     if (params.prompt_cache_all &&
             (params.interactive || params.interactive_first ||
              params.instruct)) {
 
-        throw std::invalid_argument("error: --prompt-cache-all not supported in interactive mode yet\n");
+        IC_API::trap(std::string("INVALID ARGUMENT: ") + "error: --prompt-cache-all not supported in interactive mode yet\n");
     }
 
     // short-hand to avoid specifying --hf-file -> default it to --model
@@ -1582,7 +1597,9 @@ std::string get_system_info(const gpt_params & params) {
     if (params.n_threads_batch != -1) {
         os << " (n_threads_batch = " << params.n_threads_batch << ")";
     }
-    os << " / " << std::thread::hardware_concurrency() << " | " << llama_print_system_info();
+    // AB PATCH
+    // os << " / " << std::thread::hardware_concurrency() << " | " << llama_print_system_info();
+    os << " / " << 1 << " | " << llama_print_system_info();
 
     return os.str();
 }
@@ -1620,7 +1637,7 @@ bool validate_file_name(const std::string & filename) {
     }
 
     std::u32string filename_utf32;
-    try {
+    // try {
         std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> converter;
         filename_utf32 = converter.from_bytes(filename);
 
@@ -1630,9 +1647,9 @@ bool validate_file_name(const std::string & filename) {
         if (filename_reencoded != filename) {
             return false;
         }
-    } catch (const std::exception &) {
-        return false;
-    }
+    // } catch (const std::exception &) {
+    //     return false;
+    // }
 
     // Check for forbidden codepoints:
     // - Control characters
@@ -1826,7 +1843,8 @@ static ggml_type kv_cache_type_from_str(const std::string & s) {
         return GGML_TYPE_Q5_1;
     }
 
-    throw std::runtime_error("Invalid cache type: " + s);
+    IC_API::trap(std::string("RUNTIME ERROR: ") + "Invalid cache type: " + s);
+    return GGML_TYPE_F32; // AB PATCH: must return something
 }
 
 struct llama_context_params llama_context_params_from_gpt_params(const gpt_params & params) {
@@ -2233,10 +2251,13 @@ std::tuple<struct llama_model *, struct llama_context *> llama_init_from_gpt_par
     llama_model * model = nullptr;
 
     if (!params.hf_repo.empty() && !params.hf_file.empty()) {
+        std::cout << "calling llama_load_model_from_hf" << std::endl;
         model = llama_load_model_from_hf(params.hf_repo.c_str(), params.hf_file.c_str(), params.model.c_str(), mparams);
     } else if (!params.model_url.empty()) {
+        std::cout << "calling llama_load_model_from_url" << std::endl;
         model = llama_load_model_from_url(params.model_url.c_str(), params.model.c_str(), mparams);
     } else {
+        std::cout << "calling llama_load_model_from_file('" << params.model << "')" << std::endl;
         model = llama_load_model_from_file(params.model.c_str(), mparams);
     }
 
@@ -2694,10 +2715,12 @@ void dump_non_result_info_yaml(FILE * stream, const gpt_params & params, const l
     fprintf(stream, "temp: %f # default: 0.8\n", sparams.temp);
 
     const std::vector<float> tensor_split_vector(params.tensor_split, params.tensor_split + llama_max_devices());
-    dump_vector_float_yaml(stream, "tensor_split", tensor_split_vector);
+    // dump_vector_float_yaml(stream, "tensor_split", tensor_split_vector);
 
     fprintf(stream, "tfs: %f # default: 1.0\n", sparams.tfs_z);
-    fprintf(stream, "threads: %d # default: %u\n", params.n_threads, std::thread::hardware_concurrency());
+    // AB PATCH
+    // fprintf(stream, "threads: %d # default: %u\n", params.n_threads, std::thread::hardware_concurrency());
+    fprintf(stream, "threads: %d # default: %u\n", params.n_threads, 1);
     fprintf(stream, "top_k: %d # default: 40\n", sparams.top_k);
     fprintf(stream, "top_p: %f # default: 0.95\n", sparams.top_p);
     fprintf(stream, "min_p: %f # default: 0.0\n", sparams.min_p);
@@ -2848,7 +2871,7 @@ static llama_control_vector_data llama_control_vector_load_one(const llama_contr
             // split on '.'
             size_t dotpos = name.find('.');
             if (dotpos != std::string::npos && name.substr(0, dotpos) == "direction") {
-                try {
+                // try {
                     uint32_t layer = std::stoi(name.substr(dotpos + 1));
                     if (layer == 0) {
                         fprintf(stderr, "%s: direction tensor invalid in %s\n", __func__, load_info.fname.c_str());
@@ -2859,12 +2882,12 @@ static llama_control_vector_data llama_control_vector_load_one(const llama_contr
                     if (layer > max_direction_layer) {
                         max_direction_layer = layer;
                     }
-                } catch (...) {
-                    fprintf(stderr, "%s: direction tensor invalid in %s\n", __func__, load_info.fname.c_str());
-                    ggml_free(meta_ctx);
-                    gguf_free(meta_ctx_gguf);
-                    return result;
-                }
+                // } catch (...) {
+                //     fprintf(stderr, "%s: direction tensor invalid in %s\n", __func__, load_info.fname.c_str());
+                //     ggml_free(meta_ctx);
+                //     gguf_free(meta_ctx_gguf);
+                //     return result;
+                // }
             }
 
             struct ggml_tensor * tensor_meta = ggml_get_tensor(meta_ctx, name.c_str());

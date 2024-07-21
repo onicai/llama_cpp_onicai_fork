@@ -1,10 +1,11 @@
 #pragma once
 
+// ICPP - TODO: FOR NOW, WE PROVIDE DUMMY STUBS FOR ALL LOG FUNCTIONS - SEE BOTTOM
 #include <chrono>
 #include <cstring>
 #include <sstream>
 #include <iostream>
-#include <thread>
+// #include <thread>
 #include <vector>
 #include <algorithm>
 #include <cinttypes>
@@ -110,15 +111,17 @@ enum LogTriState
 inline std::string log_get_pid()
 {
    static std::string pid;
-   if (pid.empty())
-   {
-       // std::this_thread::get_id() is the most portable way of obtaining a "process id"
-       //  it's not the same as "pid" but is unique enough to solve multiple instances
-       //  trying to write to the same log.
-       std::stringstream ss;
-       ss << std::this_thread::get_id();
-       pid = ss.str();
-   }
+   // ICPP PATCH
+   pid = "Unknown-pid (icpp-patch)";
+//    if (pid.empty())
+//    {
+//        // std::this_thread::get_id() is the most portable way of obtaining a "process id"
+//        //  it's not the same as "pid" but is unique enough to solve multiple instances
+//        //  trying to write to the same log.
+//        std::stringstream ss;
+//        ss << std::this_thread::get_id();
+//        pid = ss.str();
+//    }
 
    return pid;
 }
@@ -693,32 +696,35 @@ inline std::string LOG_BATCH_TOSTR_PRETTY(const C & ctx, const B & batch)
     return buf.str();
 }
 
-#ifdef LOG_DISABLE_LOGS
+// ICPP: Option to provide dummy stubs - TODO: REMOVE THIS
+// #ifdef LOG_DISABLE_LOGS
 
-#undef LOG
-#define LOG(...) // dummy stub
-#undef LOGLN
-#define LOGLN(...) // dummy stub
+// #undef LOG
+// #define LOG(...) // dummy stub
+// #undef LOGLN
+// #define LOGLN(...) // dummy stub
 
-#undef LOG_TEE
-#define LOG_TEE(...) fprintf(stderr, __VA_ARGS__) // convert to normal fprintf
+// #undef LOG_TEE
+// // ICPP #define LOG_TEE(...) fprintf(stderr, __VA_ARGS__) // convert to normal fprintf
+// #define LOG_TEE(...) // dummy stub
 
-#undef LOG_TEELN
-#define LOG_TEELN(...) fprintf(stderr, __VA_ARGS__) // convert to normal fprintf
+// #undef LOG_TEELN
+// // #define LOG_TEELN(...) fprintf(stderr, __VA_ARGS__) // convert to normal fprintf
+// #define LOG_TEELN(...) // dummy stub
 
-#undef LOG_DISABLE
-#define LOG_DISABLE() // dummy stub
+// #undef LOG_DISABLE
+// #define LOG_DISABLE() // dummy stub
 
-#undef LOG_ENABLE
-#define LOG_ENABLE() // dummy stub
+// #undef LOG_ENABLE
+// #define LOG_ENABLE() // dummy stub
 
-#undef LOG_ENABLE
-#define LOG_ENABLE() // dummy stub
+// #undef LOG_ENABLE
+// #define LOG_ENABLE() // dummy stub
 
-#undef LOG_SET_TARGET
-#define LOG_SET_TARGET(...) // dummy stub
+// #undef LOG_SET_TARGET
+// #define LOG_SET_TARGET(...) // dummy stub
 
-#undef LOG_DUMP_CMDLINE
-#define LOG_DUMP_CMDLINE(...) // dummy stub
+// #undef LOG_DUMP_CMDLINE
+// #define LOG_DUMP_CMDLINE(...) // dummy stub
 
-#endif // LOG_DISABLE_LOGS
+// #endif // LOG_DISABLE_LOGS
