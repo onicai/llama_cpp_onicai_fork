@@ -105,7 +105,7 @@ int32_t get_num_physical_cores() {
 // #elif defined(_WIN32)
 //     //TODO: Implement
 // #endif
-    // AB PATCH
+    // ICPP-PATCH
     // unsigned int n_threads = std::thread::hardware_concurrency(); 
     unsigned int n_threads = 1;
     return n_threads > 0 ? (n_threads <= 4 ? n_threads : n_threads / 2) : 4;
@@ -2257,7 +2257,7 @@ std::tuple<struct llama_model *, struct llama_context *> llama_init_from_gpt_par
         std::cout << "calling llama_load_model_from_url" << std::endl;
         model = llama_load_model_from_url(params.model_url.c_str(), params.model.c_str(), mparams);
     } else {
-        std::cout << "calling llama_load_model_from_file" << std::endl;
+        std::cout << "calling llama_load_model_from_file('" << params.model << "')" << std::endl;
         model = llama_load_model_from_file(params.model.c_str(), mparams);
     }
 

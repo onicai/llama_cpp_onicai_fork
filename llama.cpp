@@ -233,10 +233,7 @@ enum llm_arch {
     LLM_ARCH_UNKNOWN,
 };
 
-// std::map needs to be wrapped in a class
-// static const std::map<llm_arch, const char *> LLM_ARCH_NAMES = {
-struct LLM_ARCH_NAMES {
-    const std::map<llm_arch, const char *> map = {
+static const std::map<llm_arch, const char *> LLM_ARCH_NAMES = {
     { LLM_ARCH_LLAMA,           "llama"      },
     { LLM_ARCH_FALCON,          "falcon"     },
     { LLM_ARCH_GROK,            "grok"       },
@@ -271,8 +268,6 @@ struct LLM_ARCH_NAMES {
     { LLM_ARCH_OLMO,            "olmo"       },
     { LLM_ARCH_UNKNOWN,         "(unknown)"  },
 };
-};
-LLM_ARCH_NAMES *p_LLM_ARCH_NAMES{nullptr};
 
 enum llm_kv {
     LLM_KV_GENERAL_ARCHITECTURE,
@@ -350,10 +345,7 @@ enum llm_kv {
     LLM_KV_TOKENIZER_EOT_ID,
 };
 
-// std::map needs to be wrapped in a class
-// static const std::map<llm_kv, const char *> LLM_KV_NAMES = {
-struct LLM_KV_NAMES {
-  const std::map<llm_kv, const char *> map = {
+static const std::map<llm_kv, const char *> LLM_KV_NAMES = {
     { LLM_KV_GENERAL_ARCHITECTURE,          "general.architecture"                  },
     { LLM_KV_GENERAL_QUANTIZATION_VERSION,  "general.quantization_version"          },
     { LLM_KV_GENERAL_ALIGNMENT,             "general.alignment"                     },
@@ -428,8 +420,6 @@ struct LLM_KV_NAMES {
     { LLM_KV_TOKENIZER_MIDDLE_ID,           "tokenizer.ggml.middle_token_id"    },
     { LLM_KV_TOKENIZER_EOT_ID,              "tokenizer.ggml.eot_token_id"       },
 };
-};
-LLM_KV_NAMES *p_LLM_KV_NAMES{nullptr};
 
 struct LLM_KV {
     LLM_KV(llm_arch arch) : arch(arch) {}
@@ -437,7 +427,7 @@ struct LLM_KV {
     llm_arch arch;
 
     std::string operator()(llm_kv kv) const {
-        return ::format(p_LLM_KV_NAMES->map.at(kv), p_LLM_ARCH_NAMES->map.at(arch));
+        return ::format(LLM_KV_NAMES.at(kv), LLM_ARCH_NAMES.at(arch));
     }
 };
 
@@ -486,10 +476,7 @@ enum llm_tensor {
     LLM_TENSOR_SSM_OUT,
 };
 
-// std::map needs to be wrapped in a class
-// static const std::map<llm_arch, std::map<llm_tensor, std::string>> LLM_TENSOR_NAMES = {
-struct LLM_TENSOR_NAMES {
-  const std::map<llm_arch, std::map<llm_tensor, std::string>> map = {
+static const std::map<llm_arch, std::map<llm_tensor, std::string>> LLM_TENSOR_NAMES = {
     {
         LLM_ARCH_LLAMA,
         {
@@ -1051,11 +1038,9 @@ struct LLM_TENSOR_NAMES {
         },
     },
 };
-};
-LLM_TENSOR_NAMES *p_LLM_TENSOR_NAMES{nullptr};
 
 static llm_arch llm_arch_from_string(const std::string & name) {
-    for (const auto & kv : p_LLM_ARCH_NAMES->map) { // NOLINT
+    for (const auto & kv : LLM_ARCH_NAMES) { // NOLINT
         if (kv.second == name) {
             return kv.first;
         }
@@ -1079,57 +1064,53 @@ struct LLM_TN {
     llm_arch arch;
 
     std::string operator()(llm_tensor tensor) const {
-        if (p_LLM_TENSOR_NAMES->map.at(arch).find(tensor) == p_LLM_TENSOR_NAMES->map.at(arch).end()) {
+        if (LLM_TENSOR_NAMES.at(arch).find(tensor) == LLM_TENSOR_NAMES.at(arch).end()) {
             return "__missing__";
         }
-        return p_LLM_TENSOR_NAMES->map.at(arch).at(tensor);
+        return LLM_TENSOR_NAMES.at(arch).at(tensor);
     }
 
     std::string operator()(llm_tensor tensor, const std::string & suffix) const {
-        if (p_LLM_TENSOR_NAMES->map.at(arch).find(tensor) == p_LLM_TENSOR_NAMES->map.at(arch).end()) {
+        if (LLM_TENSOR_NAMES.at(arch).find(tensor) == LLM_TENSOR_NAMES.at(arch).end()) {
             return "__missing__";
         }
-        return p_LLM_TENSOR_NAMES->map.at(arch).at(tensor) + "." + suffix;
+        return LLM_TENSOR_NAMES.at(arch).at(tensor) + "." + suffix;
     }
 
     std::string operator()(llm_tensor tensor, int bid) const {
-        if (p_LLM_TENSOR_NAMES->map.at(arch).find(tensor) == p_LLM_TENSOR_NAMES->map.at(arch).end()) {
+        if (LLM_TENSOR_NAMES.at(arch).find(tensor) == LLM_TENSOR_NAMES.at(arch).end()) {
             return "__missing__";
         }
-        return ::format(p_LLM_TENSOR_NAMES->map.at(arch).at(tensor).c_str(), bid);
+        return ::format(LLM_TENSOR_NAMES.at(arch).at(tensor).c_str(), bid);
     }
 
     std::string operator()(llm_tensor tensor, const std::string & suffix, int bid) const {
-        if (p_LLM_TENSOR_NAMES->map.at(arch).find(tensor) == p_LLM_TENSOR_NAMES->map.at(arch).end()) {
+        if (LLM_TENSOR_NAMES.at(arch).find(tensor) == LLM_TENSOR_NAMES.at(arch).end()) {
             return "__missing__";
         }
-        return ::format(p_LLM_TENSOR_NAMES->map.at(arch).at(tensor).c_str(), bid) + "." + suffix;
+        return ::format(LLM_TENSOR_NAMES.at(arch).at(tensor).c_str(), bid) + "." + suffix;
     }
 
     std::string operator()(llm_tensor tensor, const std::string & suffix, int bid, int xid) const {
-        if (p_LLM_TENSOR_NAMES->map.at(arch).find(tensor) == p_LLM_TENSOR_NAMES->map.at(arch).end()) {
+        if (LLM_TENSOR_NAMES.at(arch).find(tensor) == LLM_TENSOR_NAMES.at(arch).end()) {
             return "__missing__";
         }
-        return ::format(p_LLM_TENSOR_NAMES->map.at(arch).at(tensor).c_str(), bid, xid) + "." + suffix;
+        return ::format(LLM_TENSOR_NAMES.at(arch).at(tensor).c_str(), bid, xid) + "." + suffix;
     }
 };
 
 //
 // gguf helpers
 //
-// std::map needs to be wrapped in a class
-// static const std::map<llama_rope_scaling_type, const char *> LLAMA_ROPE_SCALING_TYPES = {
-struct LLAMA_ROPE_SCALING_TYPES {
-  const std::map<llama_rope_scaling_type, const char *> map = {
+
+static const std::map<llama_rope_scaling_type, const char *> LLAMA_ROPE_SCALING_TYPES = {
     { LLAMA_ROPE_SCALING_TYPE_NONE,   "none"   },
     { LLAMA_ROPE_SCALING_TYPE_LINEAR, "linear" },
     { LLAMA_ROPE_SCALING_TYPE_YARN,   "yarn"   },
 };
-};
-LLAMA_ROPE_SCALING_TYPES *p_LLAMA_ROPE_SCALING_TYPES{nullptr};
 
 static llama_rope_scaling_type llama_rope_scaling_type_from_string(const std::string & name) {
-    for (const auto & kv : p_LLAMA_ROPE_SCALING_TYPES->map) {
+    for (const auto & kv : LLAMA_ROPE_SCALING_TYPES) {
         if (kv.second == name) {
             return (llama_rope_scaling_type) kv.first;
         }
@@ -3047,78 +3028,35 @@ struct llama_model_loader {
     std::string arch_name;
     LLM_KV      llm_kv    = LLM_KV(LLM_ARCH_UNKNOWN);
 
-    // ICPP-PATCH llama_model_loader(const std::string & fname, bool use_mmap, bool check_tensors, const struct llama_model_kv_override * param_overrides_p) {
-    llama_model_loader(const std::string & fname, bool use_mmap, bool check_tensors, const struct llama_model_kv_override * param_overrides_p) 
-        : llm_kv(LLM_ARCH_UNKNOWN) { // Ensure proper initialization here
-        std::cout << "icpp-00: entered llama_model_loader, with: " 
-        << "\n fname - " << fname 
-        << "\n use_mmap - " << use_mmap 
-        << std::endl;
-
+    llama_model_loader(const std::string & fname, bool use_mmap, bool check_tensors, const struct llama_model_kv_override * param_overrides_p) {
         int trace = 0;
         // icpp-no-getenv
         // if (getenv("LLAMA_TRACE")) {
         //     trace = atoi(getenv("LLAMA_TRACE"));
         // }
-        std::cout << "icpp-01" << std::endl;
 
         if (param_overrides_p != nullptr) {
             for (const struct llama_model_kv_override *p = param_overrides_p; p->key[0] != 0; p++) {
                 kv_overrides.insert({std::string(p->key), *p});
             }
         }
-        std::cout << "icpp-02" << std::endl;
 
         struct ggml_context * ctx = NULL;
         struct gguf_init_params params = {
             /*.no_alloc = */ true,
             /*.ctx      = */ &ctx,
         };
-        std::cout << "icpp-03" << std::endl;
 
         meta = gguf_init_from_file(fname.c_str(), params);
         if (!meta) {
             IC_API::trap(std::string("RUNTIME ERROR: ") + format("%s: failed to load model from %s\n", __func__, fname.c_str()));
         }
-        std::cout << "icpp-04" << std::endl;
-        
 
-        // THIS WORKS
-        // get_key("general.architecture", arch_name, false);
-        
-        // THIS ORIGINAL GIVES ERROR IN CANISTER:
-        /*
-        2024-07-15 22:56:44.454781 UTC: [Canister bkyz2-fmaaa-aaaaa-qaaaq-cai] icpp-04
-
-        2024-07-15 22:56:44.454781 UTC: [Canister bkyz2-fmaaa-aaaaa-qaaaq-cai] 
-        2024-07-15 22:56:44.454781 UTC: [Canister bkyz2-fmaaa-aaaaa-qaaaq-cai] out_of_range was thrown in -fno-exceptions mode with message "
-        2024-07-15 22:56:44.454781 UTC: [Canister bkyz2-fmaaa-aaaaa-qaaaq-cai] map::at:  key not found
-        2024-07-15 22:56:44.454781 UTC: [Canister bkyz2-fmaaa-aaaaa-qaaaq-cai] "
-        */
         get_key(llm_kv(LLM_KV_GENERAL_ARCHITECTURE), arch_name, false);
-
-        // ICPP-PATCH-START-DEBUG
-        // Check if key exists before getting it
-        // llm_kv = LLM_KV(LLM_KV_GENERAL_ARCHITECTURE);
-        // std::cout << "icpp-04: key = " << key << std::endl;
-        // if (kv_overrides.find(key) != kv_overrides.end()) {
-        //     get_key(key, arch_name, false);
-        // } else {
-        //     std::cout << "Key not found: " << key << std::endl;
-        //     exit(1);
-        // }
-        // ICPP-PATCH-END-DEBUG
-        
-        std::cout << "icpp-05" << std::endl;
-        std::cout << "icpp-05: - arch_name = " << arch_name << std::endl; // "llama"
-
         llm_kv = LLM_KV(llm_arch_from_string(arch_name));
-        std::cout << "icpp-06" << std::endl;
 
         files.emplace_back(new llama_file(fname.c_str(), "rb"));
-        std::cout << "icpp-07" << std::endl;
         contexts.emplace_back(ctx);
-        std::cout << "icpp-08" << std::endl;
 
         // Save tensors data offset of the main file.
         // For subsidiary files, `meta` tensor data offset must not be used,
@@ -3126,10 +3064,8 @@ struct llama_model_loader {
         for (ggml_tensor * cur = ggml_get_first_tensor(ctx); cur; cur = ggml_get_next_tensor(ctx, cur)) {
             weights.emplace_back(files.back().get(), 0, cur->name, meta, cur);
         }
-        std::cout << "icpp-09" << std::endl;
         uint16_t n_split = 0;
         get_key(llm_kv(LLM_KV_SPLIT_COUNT), n_split, false);
-        std::cout << "icpp-10" << std::endl;
 
         // Load additional GGML contexts
         if (n_split > 1) {
@@ -3185,13 +3121,10 @@ struct llama_model_loader {
             LLAMA_LOG_INFO("%s: additional %d GGUFs metadata loaded.\n",  __func__, n_split - 1);
         }
 
-        std::cout << "icpp-11" << std::endl;
         n_kv      = gguf_get_n_kv(meta);
-        std::cout << "icpp-12" << std::endl;
         n_tensors = weights.size();
 
         fver = (enum llama_fver) gguf_get_version(meta);
-        std::cout << "icpp-13" << std::endl;
 
         std::set<std::string> tensor_names;
         for (auto & w : weights) {
@@ -3205,11 +3138,9 @@ struct llama_model_loader {
             }
             tensor_names.insert(name);
         }
-        std::cout << "icpp-14" << std::endl;
 
         LLAMA_LOG_INFO("%s: loaded meta data with %d key-value pairs and %d tensors from %s (version %s)\n",
                 __func__, n_kv, n_tensors, fname.c_str(), llama_file_version_name(fver));
-        std::cout << "icpp-15" << std::endl;
 
         // determine file type based on the number of tensors for each quantization and print meta data
         // TODO: make optional
@@ -3304,17 +3235,14 @@ struct llama_model_loader {
                 LLAMA_LOG_INFO("%s: - type %4s: %4d tensors\n", __func__, ggml_type_name(kv.first), kv.second);
             }
         }
-        std::cout << "icpp-16" << std::endl;
 
         if (!llama_mmap::SUPPORTED) {
             LLAMA_LOG_WARN("%s: mmap is not supported on this platform\n", __func__);
             use_mmap = false;
         }
-        std::cout << "icpp-17" << std::endl;
 
         this->use_mmap = use_mmap;
         this->check_tensors = check_tensors;
-        std::cout << "icpp-18" << std::endl;
     }
 
     ~llama_model_loader() {
@@ -3724,8 +3652,8 @@ bool llama_model_loader::get_key(const enum llm_kv kid, enum llama_pooling_type 
 //
 
 static const char * llama_model_arch_name(llm_arch arch) {
-    auto it = p_LLM_ARCH_NAMES->map.find(arch);
-    if (it == p_LLM_ARCH_NAMES->map.end()) {
+    auto it = LLM_ARCH_NAMES.find(arch);
+    if (it == LLM_ARCH_NAMES.end()) {
         return "unknown";
     }
     return it->second;
@@ -4634,11 +4562,11 @@ static void llm_load_print_meta(llama_model_loader & ml, llama_model & model) {
     const auto & hparams = model.hparams;
     const auto & vocab   = model.vocab;
 
-    const char * rope_scaling_type = p_LLAMA_ROPE_SCALING_TYPES->map.at(hparams.rope_scaling_type_train);
+    const char * rope_scaling_type = LLAMA_ROPE_SCALING_TYPES.at(hparams.rope_scaling_type_train);
 
     // hparams
     LLAMA_LOG_INFO("%s: format           = %s\n",     __func__, llama_file_version_name(ml.fver));
-    LLAMA_LOG_INFO("%s: arch             = %s\n",     __func__, p_LLM_ARCH_NAMES->map.at(model.arch));
+    LLAMA_LOG_INFO("%s: arch             = %s\n",     __func__, LLM_ARCH_NAMES.at(model.arch));
     LLAMA_LOG_INFO("%s: vocab type       = %s\n",     __func__, llama_model_vocab_type_name(vocab.type));
     LLAMA_LOG_INFO("%s: n_vocab          = %u\n",     __func__, hparams.n_vocab);
     LLAMA_LOG_INFO("%s: n_merges         = %u\n",     __func__, (int) vocab.bpe_ranks.size());
@@ -6107,50 +6035,39 @@ static bool llm_load_tensors(
 
 // Returns 0 on success, -1 on error, and -2 on cancellation via llama_progress_callback
 static int llama_model_load(const std::string & fname, llama_model & model, llama_model_params & params) {
-    std::cout << "icpp-00: entered llama_model_load, for fname - " << fname << std::endl;
     // try {
         llama_model_loader ml(fname, params.use_mmap, params.check_tensors, params.kv_overrides);
-        std::cout << "icpp-01" << std::endl;
 
         model.hparams.vocab_only = params.vocab_only;
-        std::cout << "icpp-02" << std::endl;
 
         // try {
             llm_load_arch(ml, model);
-            std::cout << "icpp-03" << std::endl;
         // } catch(const std::exception & e) {
         //     IC_API::trap(std::string("RUNTIME ERROR: ") + "error loading model architecture: " + std::string(e.what()));
         // }
         // try {
             llm_load_hparams(ml, model);
-            std::cout << "icpp-04" << std::endl;
         // } catch(const std::exception & e) {
         //     IC_API::trap(std::string("RUNTIME ERROR: ") + "error loading model hyperparameters: " + std::string(e.what()));
         // }
         // try {
             llm_load_vocab(ml, model);
-            std::cout << "icpp-05" << std::endl;
         // } catch(const std::exception & e) {
         //     IC_API::trap(std::string("RUNTIME ERROR: ") + "error loading model vocabulary: " + std::string(e.what()));
         // }
 
         llm_load_print_meta(ml, model);
-        std::cout << "icpp-06" << std::endl;
 
         if (model.vocab.type != LLAMA_VOCAB_TYPE_NONE &&
             model.hparams.n_vocab != model.vocab.id_to_token.size()) {
-            std::cout << "icpp-06-a" << std::endl;
             IC_API::trap(std::string("RUNTIME ERROR: ") + "vocab size mismatch");
         }
 
-        std::cout << "icpp-07" << std::endl;
         if (params.vocab_only) {
             LLAMA_LOG_INFO("%s: vocab only - skipping tensors\n", __func__);
-            std::cout << "icpp-07-a" << std::endl;
             return 0;
         }
 
-        std::cout << "icpp-08" << std::endl;
 #ifdef GGML_USE_KOMPUTE
         if (params.n_gpu_layers > 0 && (
             !(model.arch == LLM_ARCH_LLAMA || model.arch == LLM_ARCH_FALCON)
@@ -6167,7 +6084,6 @@ static int llama_model_load(const std::string & fname, llama_model & model, llam
         }
 #endif
 
-        std::cout << "icpp-09" << std::endl;
 #ifdef GGML_USE_SYCL
         if (params.split_mode == LLAMA_SPLIT_MODE_NONE) {
             ggml_backend_sycl_set_single_device_mode(params.main_gpu);
@@ -6178,7 +6094,6 @@ static int llama_model_load(const std::string & fname, llama_model & model, llam
         }
 #endif
 
-        std::cout << "icpp-10" << std::endl;
         if (!llm_load_tensors(
             ml, model, params.n_gpu_layers, params.split_mode,  params.main_gpu, params.tensor_split, params.use_mlock,
             params.progress_callback, params.progress_callback_user_data
@@ -6189,7 +6104,6 @@ static int llama_model_load(const std::string & fname, llama_model & model, llam
     //     LLAMA_LOG_ERROR("%s: error loading model: %s\n", __func__, err.what());
     //     return -1;
     // }
-        std::cout << "icpp-11" << std::endl;
 
     return 0;
 }
@@ -15342,37 +15256,6 @@ bool llama_supports_gpu_offload(void) {
 void llama_backend_init(void) {
     ggml_time_init();
 
-    // ICPP-START
-    // Need to allocate the wrapped maps, if not yet done
-    if (!p_LLM_ARCH_NAMES){
-        p_LLM_ARCH_NAMES = new (std::nothrow) LLM_ARCH_NAMES();
-        if (p_LLM_ARCH_NAMES == nullptr) {
-            IC_API::trap("Allocation of p_LLM_ARCH_NAMES failed");
-        }
-    }
-
-    if (!p_LLM_KV_NAMES){
-        p_LLM_KV_NAMES = new (std::nothrow) LLM_KV_NAMES();
-        if (p_LLM_KV_NAMES == nullptr) {
-            IC_API::trap("Allocation of p_LLM_KV_NAMES failed");
-        }
-    }
-
-    if (!p_LLM_TENSOR_NAMES){
-        p_LLM_TENSOR_NAMES = new (std::nothrow) LLM_TENSOR_NAMES();
-        if (p_LLM_TENSOR_NAMES == nullptr) {
-            IC_API::trap("Allocation of p_LLM_TENSOR_NAMES failed");
-        }
-    }
-
-    if (!p_LLAMA_ROPE_SCALING_TYPES){
-        p_LLAMA_ROPE_SCALING_TYPES = new (std::nothrow) LLAMA_ROPE_SCALING_TYPES();
-        if (p_LLAMA_ROPE_SCALING_TYPES == nullptr) {
-            IC_API::trap("Allocation of p_LLAMA_ROPE_SCALING_TYPES failed");
-        }
-    }
-    // ICCPP-END
-
     // needed to initialize f16 tables
     {
         struct ggml_init_params params = { 0, NULL, false };
@@ -15405,15 +15288,11 @@ int64_t llama_time_us(void) {
 struct llama_model * llama_load_model_from_file(
         const char * path_model,
         struct llama_model_params   params) {
-    std::cout << "icpp 01" << std::endl;
     ggml_time_init();
-    std::cout << "icpp 02" << std::endl;
 
     llama_model * model = new llama_model;
-    std::cout << "icpp 03" << std::endl;
 
     unsigned cur_percentage = 0;
-    std::cout << "icpp 04" << std::endl;
     if (params.progress_callback == NULL) {
         params.progress_callback_user_data = &cur_percentage;
         params.progress_callback = [](float progress, void * ctx) {
@@ -15429,12 +15308,9 @@ struct llama_model * llama_load_model_from_file(
             return true;
         };
     }
-    std::cout << "icpp 05" << std::endl;
-    std::cout << "calling llama_model_load, with: \n" << "path_model = " << path_model << std::endl;
+
     int status = llama_model_load(path_model, *model, params);
-    std::cout << "icpp 06" << std::endl;
     GGML_ASSERT(status <= 0);
-    std::cout << "icpp 07" << std::endl;
     if (status < 0) {
         if (status == -1) {
             LLAMA_LOG_ERROR("%s: failed to load model\n", __func__);
@@ -15444,7 +15320,6 @@ struct llama_model * llama_load_model_from_file(
         delete model;
         return nullptr;
     }
-    std::cout << "icpp 08" << std::endl;
 
     return model;
 }
@@ -17947,17 +17822,3 @@ static void llama_log_callback_default(ggml_log_level level, const char * text, 
     fputs(text, stderr);
     fflush(stderr);
 }
-
-
-// ICPP-PATCH START
-void icpp_print_debug_stuff() {
-    std::cout << "icpp-00: entered icpp_debug_stuff_by_printing_it " << std::endl;
-
-    // --- mimic llama_model_loader
-    LLM_KV      llm_kv    = LLM_KV(LLM_ARCH_UNKNOWN);
-
-    std::cout << "icpp-01" << std::endl;
-    std::string arch = llm_kv(LLM_KV_GENERAL_ARCHITECTURE);
-    std::cout << "icpp-02 - arch = " << arch << std::endl;
-}
-// ICPP-PATCH END
