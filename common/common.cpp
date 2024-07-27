@@ -195,9 +195,10 @@ int32_t cpu_get_num_math() {
 //
 
 void gpt_params_handle_hf_token(gpt_params & params) {
-    if (params.hf_token.empty() && std::getenv("HF_TOKEN")) {
-        params.hf_token = std::getenv("HF_TOKEN");
-    }
+    // icpp-patch: no getenv
+    // if (params.hf_token.empty() && std::getenv("HF_TOKEN")) {
+    //     params.hf_token = std::getenv("HF_TOKEN");
+    // }
 }
 
 void gpt_params_handle_model_default(gpt_params & params) {
@@ -2006,23 +2007,24 @@ std::string fs_get_cache_directory() {
         }
         return p;
     };
-    if (getenv("LLAMA_CACHE")) {
-        cache_directory = std::getenv("LLAMA_CACHE");
-    } else {
-#ifdef __linux__
-        if (std::getenv("XDG_CACHE_HOME")) {
-            cache_directory = std::getenv("XDG_CACHE_HOME");
-        } else {
-            cache_directory = std::getenv("HOME") + std::string("/.cache/");
-        }
-#elif defined(__APPLE__)
-        cache_directory = std::getenv("HOME") + std::string("/Library/Caches/");
-#elif defined(_WIN32)
-        cache_directory = std::getenv("LOCALAPPDATA");
-#endif // __linux__
+    // icpp-patch: no getenv
+//     if (getenv("LLAMA_CACHE")) {
+//         cache_directory = std::getenv("LLAMA_CACHE");
+//     } else {
+// #ifdef __linux__
+//         if (std::getenv("XDG_CACHE_HOME")) {
+//             cache_directory = std::getenv("XDG_CACHE_HOME");
+//         } else {
+//             cache_directory = std::getenv("HOME") + std::string("/.cache/");
+//         }
+// #elif defined(__APPLE__)
+//         cache_directory = std::getenv("HOME") + std::string("/Library/Caches/");
+// #elif defined(_WIN32)
+//         cache_directory = std::getenv("LOCALAPPDATA");
+// #endif // __linux__
         cache_directory = ensure_trailing_slash(cache_directory);
         cache_directory += "llama.cpp";
-    }
+    // }
     return ensure_trailing_slash(cache_directory);
 }
 
