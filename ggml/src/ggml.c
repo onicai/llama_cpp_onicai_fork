@@ -118,7 +118,7 @@ static int sched_yield (void) {
 //ICPP-no-threading #include <pthread.h>
 //ICPP-no-threading #include <stdatomic.h>
 
-//ICPP-no-threading typedef void * thread_ret_t;
+typedef void * thread_ret_t;
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -12280,11 +12280,11 @@ UseGgmlGemm1:;
         }
     }
 
-    if (ith == 0) {
-        exit(1); //icpp-patch: no threading
-        // Every thread starts at ith, so the first unprocessed chunk is nth.  This save a bit of coordination right at the start.
-        // atomic_store(&params->shared->current_chunk, nth);
-    }
+    //icpp-patch: no threading
+    // if (ith == 0) {
+    //     // Every thread starts at ith, so the first unprocessed chunk is nth.  This save a bit of coordination right at the start.
+    //     atomic_store(&params->shared->current_chunk, nth);
+    // }
 
     ggml_barrier(params->shared);
 
@@ -12394,8 +12394,8 @@ UseGgmlGemm2:;
             break;
         }
 
-        exit(1); //icpp-patch: no threading
         // current_chunk = atomic_fetch_add(&params->shared->current_chunk, 1);
+        ++current_chunk; //icpp-patch: no threading
     }
 }
 
@@ -18791,41 +18791,43 @@ struct ggml_cplan ggml_graph_plan(const struct ggml_cgraph * cgraph, int n_threa
     return cplan;
 }
 
-//icpp-patch: no threading
-// static thread_ret_t ggml_graph_compute_thread(void * data) {
-//     struct ggml_compute_state * state = (struct ggml_compute_state *) data;
+static thread_ret_t ggml_graph_compute_thread(void * data) {
+    struct ggml_compute_state * state = (struct ggml_compute_state *) data;
 
-//     const struct ggml_cgraph * cgraph = state->shared->cgraph;
-//     const struct ggml_cplan  * cplan  = state->shared->cplan;
+    const struct ggml_cgraph * cgraph = state->shared->cgraph;
+    const struct ggml_cplan  * cplan  = state->shared->cplan;
 
-//     set_numa_thread_affinity(state->ith);
+    set_numa_thread_affinity(state->ith);
 
-//     struct ggml_compute_params params = {
-//         /*.ith   =*/ state->ith,
-//         /*.nth   =*/ state->shared->n_threads,
-//         /*.wsize =*/ cplan->work_size,
-//         /*.wdata =*/ cplan->work_data,
-//         /*.shared=*/ state->shared,
-//     };
+    struct ggml_compute_params params = {
+        /*.ith   =*/ state->ith,
+        /*.nth   =*/ state->shared->n_threads,
+        /*.wsize =*/ cplan->work_size,
+        /*.wdata =*/ cplan->work_data,
+        /*.shared=*/ state->shared,
+    };
 
-//     for (int node_n = 0; node_n < cgraph->n_nodes; node_n++) {
-//         struct ggml_tensor * node = cgraph->nodes[node_n];
+    for (int node_n = 0; node_n < cgraph->n_nodes; node_n++) {
+        // printf("icpp debug: ggml_graph_compute_thread - node_n = %d\n", node_n);
+        // fflush(stdout); // Flush the output buffer
 
-//         ggml_compute_forward(&params, node);
+        struct ggml_tensor * node = cgraph->nodes[node_n];
 
-//         if (state->ith == 0 && cplan->abort_callback && cplan->abort_callback(cplan->abort_callback_data)) {
-//             state->shared->ec = GGML_STATUS_ABORTED;
-//         }
+        ggml_compute_forward(&params, node);
 
-//         ggml_barrier(state->shared);
+        if (state->ith == 0 && cplan->abort_callback && cplan->abort_callback(cplan->abort_callback_data)) {
+            state->shared->ec = GGML_STATUS_ABORTED;
+        }
 
-//         if (state->shared->ec != GGML_STATUS_SUCCESS) {
-//             break;
-//         }
-//     }
+        ggml_barrier(state->shared);
 
-//     return 0;
-// }
+        if (state->shared->ec != GGML_STATUS_SUCCESS) {
+            break;
+        }
+    }
+
+    return 0;
+}
 
 enum ggml_status ggml_graph_compute(struct ggml_cgraph * cgraph, struct ggml_cplan * cplan) {
     GGML_ASSERT(cplan);
@@ -18885,6 +18887,8 @@ enum ggml_status ggml_graph_compute(struct ggml_cgraph * cgraph, struct ggml_cpl
 
     // create thread pool
     for (int j = 1; j < n_threads; ++j) {
+        printf("icpp debug - ERROR 01 in ggml_graph_compute ERROR - n_threads = %d\n", n_threads);
+        fflush(stdout); // Flush the output buffer
         exit(1); //icpp-patch: no threading
         // const int rc = ggml_thread_create(&workers[j].thrd, NULL, ggml_graph_compute_thread, &workers[j]);
         // GGML_ASSERT(rc == 0);
@@ -18892,17 +18896,18 @@ enum ggml_status ggml_graph_compute(struct ggml_cgraph * cgraph, struct ggml_cpl
     }
 
     // this is a work thread too
-    exit(1); //icpp-patch: no threading
-    // ggml_graph_compute_thread(&workers[0]);
+    ggml_graph_compute_thread(&workers[0]);
 
     // join or kill thread pool
     if (n_threads > 1) {
-        for (int j = 1; j < n_threads; j++) {
-            exit(1); //icpp-patch: no threading
-            // const int rc = ggml_thread_join(workers[j].thrd, NULL);
-            // GGML_ASSERT(rc == 0);
-            // UNUSED(rc);
-        }
+        printf("icpp debug - ERROR 02 in ggml_graph_compute ERROR - n_threads = %d\n", n_threads);
+        fflush(stdout); // Flush the output buffer
+        exit(1); //icpp-patch: no threading
+        // for (int j = 1; j < n_threads; j++) {            
+        //     const int rc = ggml_thread_join(workers[j].thrd, NULL);
+        //     GGML_ASSERT(rc == 0);
+        //     UNUSED(rc);
+        // }
     }
 #endif
 
