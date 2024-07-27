@@ -1845,7 +1845,9 @@ ggml_backend_sched_t ggml_backend_sched_new(
 
     struct ggml_backend_sched * sched = calloc(1, sizeof(struct ggml_backend_sched));
 
-    sched->debug = getenv("GGML_SCHED_DEBUG") != NULL;
+    // icpp-patch: no getenv
+    // sched->debug = getenv("GGML_SCHED_DEBUG") != NULL;
+    sched->debug = false;
 
     // initialize hash table
     sched->hash_set          = ggml_hash_set_new(graph_size);

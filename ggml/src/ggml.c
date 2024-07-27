@@ -24,7 +24,7 @@
 #include <float.h>
 #include <limits.h>
 #include <stdarg.h>
-#include <signal.h>
+//icpp-patch #include <signal.h>
 #if defined(__gnu_linux__)
 #include <syscall.h>
 #endif
@@ -115,8 +115,8 @@ static int sched_yield (void) {
     return 0;
 }
 #else
-#include <pthread.h>
-#include <stdatomic.h>
+//ICPP-no-threading #include <pthread.h>
+//ICPP-no-threading #include <stdatomic.h>
 
 typedef void * thread_ret_t;
 
@@ -1786,13 +1786,14 @@ struct ggml_compute_state_shared {
     int n_threads;
 
     // synchronization primitives
-    atomic_int n_barrier;
-    atomic_int n_barrier_passed;
+    // icpp-patch - threading not supported
+    // atomic_int n_barrier;
+    // atomic_int n_barrier_passed;
 
     ggml_abort_callback abort_callback; // abort ggml_graph_compute when true
     void * abort_callback_data;
 
-    atomic_int current_chunk; // currently processing chunk during mul_mat, shared between all the threads
+    // atomic_int current_chunk; // currently processing chunk during mul_mat, shared between all the threads
 
     enum ggml_status ec;
 };
@@ -2895,23 +2896,26 @@ struct ggml_state {
 
 // global state
 static struct ggml_state g_state;
-static atomic_flag g_state_critical = ATOMIC_FLAG_INIT;
+//ICPP-no-threading static atomic_int g_state_barrier = 0;
 
 // critical section via spin lock
 inline static void ggml_critical_section_start(void) {
-    while (atomic_flag_test_and_set(&g_state_critical)) {
-        // spin
-        sched_yield();
-    }
+    //ICPP-no-threading In a single-threaded context, this is a no-op.
+    //while (atomic_flag_test_and_set(&g_state_critical)) {
+    //    // spin
+    //    sched_yield();
+    //}
 }
 
 #ifdef GGML_USE_OPENMP
 static void ggml_barrier(struct ggml_compute_state_shared * shared) {
-    if (shared->n_threads == 1) {
-        return;
-    }
+    //ICPP-no-threading In a single-threaded context, this is a no-op.
+    return;
+    //if (shared->n_threads == 1) {
+    //    return;
+    //}
 
-    #pragma omp barrier
+    //#pragma omp barrier
 }
 #else
 static void ggml_barrier(struct ggml_compute_state_shared * shared) {
@@ -2919,38 +2923,38 @@ static void ggml_barrier(struct ggml_compute_state_shared * shared) {
         return;
     }
 
-    atomic_int * n_barrier = &shared->n_barrier;
-    atomic_int * n_barrier_passed = &shared->n_barrier_passed;
+    //atomic_int * n_barrier = &shared->n_barrier;
+    //atomic_int * n_barrier_passed = &shared->n_barrier_passed;
 
-    int n_threads = shared->n_threads;
-    int passed_old = atomic_load(n_barrier_passed);
+    //int n_threads = shared->n_threads;
+    //int passed_old = atomic_load(n_barrier_passed);
 
-    if (atomic_fetch_add(n_barrier, 1) == n_threads - 1) {
-        // last thread
-        atomic_store(n_barrier, 0);
-        atomic_fetch_add(n_barrier_passed, 1);
-    } else {
-        // wait for other threads
-        const int n_spin_before_sleep = 100000;
-        while (true) {
-            for (int i = 0; i < n_spin_before_sleep; i++) {
-                if (atomic_load(n_barrier_passed) != passed_old) {
-                    return;
-                }
-            #if defined(__SSE3__)
-                _mm_pause();
-            #endif
-            }
-            sched_yield();
-        }
-    }
+    //if (atomic_fetch_add(n_barrier, 1) == n_threads - 1) {
+    //    // last thread
+    //    atomic_store(n_barrier, 0);
+    //    atomic_fetch_add(n_barrier_passed, 1);
+    //} else {
+    //    // wait for other threads
+    //    const int n_spin_before_sleep = 100000;
+    //    while (true) {
+    //        for (int i = 0; i < n_spin_before_sleep; i++) {
+    //            if (atomic_load(n_barrier_passed) != passed_old) {
+    //                return;
+    //            }
+    //        #if defined(__SSE3__)
+    //            _mm_pause();
+    //        #endif
+    //        }
+    //        sched_yield();
+    //    }
+   // }
 }
 #endif
 
 // TODO: make this somehow automatically executed
 //       some sort of "sentry" mechanism
 inline static void ggml_critical_section_end(void) {
-    atomic_flag_clear(&g_state_critical);
+    //icpp-patch atomic_flag_clear(&g_state_critical);
 }
 
 #if defined(__gnu_linux__)
@@ -12276,10 +12280,11 @@ UseGgmlGemm1:;
         }
     }
 
-    if (ith == 0) {
-        // Every thread starts at ith, so the first unprocessed chunk is nth.  This save a bit of coordination right at the start.
-        atomic_store(&params->shared->current_chunk, nth);
-    }
+    //icpp-patch: no threading
+    // if (ith == 0) {
+    //     // Every thread starts at ith, so the first unprocessed chunk is nth.  This save a bit of coordination right at the start.
+    //     atomic_store(&params->shared->current_chunk, nth);
+    // }
 
     ggml_barrier(params->shared);
 
@@ -12389,7 +12394,8 @@ UseGgmlGemm2:;
             break;
         }
 
-        current_chunk = atomic_fetch_add(&params->shared->current_chunk, 1);
+        // current_chunk = atomic_fetch_add(&params->shared->current_chunk, 1);
+        ++current_chunk; //icpp-patch: no threading
     }
 }
 
@@ -18802,6 +18808,9 @@ static thread_ret_t ggml_graph_compute_thread(void * data) {
     };
 
     for (int node_n = 0; node_n < cgraph->n_nodes; node_n++) {
+        // printf("icpp debug: ggml_graph_compute_thread - node_n = %d\n", node_n);
+        // fflush(stdout); // Flush the output buffer
+
         struct ggml_tensor * node = cgraph->nodes[node_n];
 
         ggml_compute_forward(&params, node);
@@ -18831,11 +18840,11 @@ enum ggml_status ggml_graph_compute(struct ggml_cgraph * cgraph, struct ggml_cpl
         /*.cgraph                  =*/ cgraph,
         /*.cgraph_plan             =*/ cplan,
         /*.n_threads               =*/ n_threads,
-        /*.n_barrier               =*/ 0,
-        /*.n_barrier_passed        =*/ 0,
+        // /*.n_barrier               =*/ 0, //icpp-patch: no threading
+        // /*.n_barrier_passed        =*/ 0, //icpp-patch: no threading
         /*.abort_callback          =*/ NULL,
         /*.abort_callback_data     =*/ NULL,
-        /*.current_chunk           =*/ 0,
+        // /*.current_chunk           =*/ 0, //icpp-patch: no threading
         /*.ec                      =*/ GGML_STATUS_SUCCESS,
     };
 
@@ -18878,9 +18887,12 @@ enum ggml_status ggml_graph_compute(struct ggml_cgraph * cgraph, struct ggml_cpl
 
     // create thread pool
     for (int j = 1; j < n_threads; ++j) {
-        const int rc = ggml_thread_create(&workers[j].thrd, NULL, ggml_graph_compute_thread, &workers[j]);
-        GGML_ASSERT(rc == 0);
-        UNUSED(rc);
+        printf("icpp debug - ERROR 01 in ggml_graph_compute ERROR - n_threads = %d\n", n_threads);
+        fflush(stdout); // Flush the output buffer
+        exit(1); //icpp-patch: no threading
+        // const int rc = ggml_thread_create(&workers[j].thrd, NULL, ggml_graph_compute_thread, &workers[j]);
+        // GGML_ASSERT(rc == 0);
+        // UNUSED(rc);
     }
 
     // this is a work thread too
@@ -18888,11 +18900,14 @@ enum ggml_status ggml_graph_compute(struct ggml_cgraph * cgraph, struct ggml_cpl
 
     // join or kill thread pool
     if (n_threads > 1) {
-        for (int j = 1; j < n_threads; j++) {
-            const int rc = ggml_thread_join(workers[j].thrd, NULL);
-            GGML_ASSERT(rc == 0);
-            UNUSED(rc);
-        }
+        printf("icpp debug - ERROR 02 in ggml_graph_compute ERROR - n_threads = %d\n", n_threads);
+        fflush(stdout); // Flush the output buffer
+        exit(1); //icpp-patch: no threading
+        // for (int j = 1; j < n_threads; j++) {            
+        //     const int rc = ggml_thread_join(workers[j].thrd, NULL);
+        //     GGML_ASSERT(rc == 0);
+        //     UNUSED(rc);
+        // }
     }
 #endif
 

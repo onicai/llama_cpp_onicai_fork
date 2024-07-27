@@ -2,6 +2,7 @@
 #define _SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING
 #endif
 
+#include "ic_api.h"
 #include "unicode.h"
 #include "unicode-data.h"
 
@@ -41,11 +42,11 @@ uint32_t unicode_cpt_from_utf8(const std::string & utf8, size_t & offset) {
         return result;
     }
     if (!(utf8[offset + 0] & 0x40)) {
-        throw std::invalid_argument("invalid character");
+        IC_API::trap(std::string("INVALID ARGUMENT: ") + "invalid character");
     }
     if (!(utf8[offset + 0] & 0x20)) {
         if (offset + 1 >= utf8.size() || ! ((utf8[offset + 1] & 0xc0) == 0x80)) {
-            throw std::invalid_argument("invalid character");
+            IC_API::trap(std::string("INVALID ARGUMENT: ") + "invalid character");
         }
         auto result = ((utf8[offset + 0] & 0x1f) << 6) | (utf8[offset + 1] & 0x3f);
         offset += 2;
@@ -53,7 +54,7 @@ uint32_t unicode_cpt_from_utf8(const std::string & utf8, size_t & offset) {
     }
     if (!(utf8[offset + 0] & 0x10)) {
         if (offset + 2 >= utf8.size() || ! ((utf8[offset + 1] & 0xc0) == 0x80) || ! ((utf8[offset + 2] & 0xc0) == 0x80)) {
-            throw std::invalid_argument("invalid character");
+            IC_API::trap(std::string("INVALID ARGUMENT: ") + "invalid character");
         }
         auto result = ((utf8[offset + 0] & 0x0f) << 12) | ((utf8[offset + 1] & 0x3f) << 6) | (utf8[offset + 2] & 0x3f);
         offset += 3;
@@ -61,13 +62,14 @@ uint32_t unicode_cpt_from_utf8(const std::string & utf8, size_t & offset) {
     }
     if (!(utf8[offset + 0] & 0x08)) {
         if (offset + 3 >= utf8.size() || ! ((utf8[offset + 1] & 0xc0) == 0x80) || ! ((utf8[offset + 2] & 0xc0) == 0x80) || !((utf8[offset + 3] & 0xc0) == 0x80)) {
-            throw std::invalid_argument("invalid character");
+            IC_API::trap(std::string("INVALID ARGUMENT: ") + "invalid character");
         }
         auto result = ((utf8[offset + 0] & 0x07) << 18) | ((utf8[offset + 1] & 0x3f) << 12) | ((utf8[offset + 2] & 0x3f) << 6) | (utf8[offset + 3] & 0x3f);
         offset += 4;
         return result;
     }
-    throw std::invalid_argument("failed to convert utf8 to codepoint");
+    IC_API::trap(std::string("INVALID ARGUMENT: ") + "invalid string");
+    return 0xFFFFFFFF; // icpp-patch Will never get here, but must return something to compile
 }
 
 //static std::vector<uint16_t> unicode_cpt_to_utf16(uint32_t cp) {
@@ -586,7 +588,8 @@ std::string unicode_cpt_to_utf8(uint32_t cp) {
         return result;
     }
 
-    throw std::invalid_argument("invalid codepoint");
+    IC_API::trap(std::string("INVALID ARGUMENT: ") + "invalid codepoint");
+    return result;
 }
 
 std::vector<uint32_t> unicode_cpts_normalize_nfd(const std::vector<uint32_t> & cpts) {
@@ -716,7 +719,7 @@ std::vector<std::string> unicode_regex_split(const std::string & text, const std
         }
 
         // fallback to general-purpose std::regex / std::wregex
-        try {
+        // try {
             // if a unicode category is used in the regex, we use the collapsed text and replace the unicode category
             // with the corresponding collapsed representation
             bool use_collapsed = false;
@@ -732,7 +735,7 @@ std::vector<std::string> unicode_regex_split(const std::string & text, const std
                 const auto cpts_regex = unicode_cpts_from_utf8(regex_expr);
                 for (size_t i = 0; i < cpts_regex.size(); ++i) {
                     if (cpts_regex[i] >= 128) {
-                        throw std::runtime_error("Regex includes both unicode categories and non-ASCII characters - not supported");
+                        IC_API::trap(std::string("RUNTIME ERROR: ") + "Regex includes both unicode categories and non-ASCII characters - not supported");
                     }
                 }
 
@@ -795,11 +798,11 @@ std::vector<std::string> unicode_regex_split(const std::string & text, const std
                 //printf("regex_expr: %s\n", regex_expr.c_str());
                 bpe_offsets = unicode_regex_split_stl(wtext, wregex_expr, bpe_offsets);
             }
-        } catch (std::regex_error & e) {
-            fprintf(stderr, "Failed to process regex: '%s'\n", regex_expr.c_str());
-            fprintf(stderr, "Regex error: %s\n", e.what());
-            throw std::runtime_error("Failed to process regex");
-        }
+        // } catch (std::regex_error & e) {
+        //     fprintf(stderr, "Failed to process regex: '%s'\n", regex_expr.c_str());
+        //     fprintf(stderr, "Regex error: %s\n", e.what());
+        //     IC_API::trap(std::string("RUNTIME ERROR: ") + "Failed to process regex");
+        // }
     }
 
     std::vector<std::string> bpe_words;

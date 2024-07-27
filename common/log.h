@@ -4,7 +4,7 @@
 #include <cstring>
 #include <sstream>
 #include <iostream>
-#include <thread>
+// #include <thread>
 #include <vector>
 #include <algorithm>
 #include <cinttypes>
@@ -110,15 +110,17 @@ enum LogTriState
 inline std::string log_get_pid()
 {
    static std::string pid;
-   if (pid.empty())
-   {
-       // std::this_thread::get_id() is the most portable way of obtaining a "process id"
-       //  it's not the same as "pid" but is unique enough to solve multiple instances
-       //  trying to write to the same log.
-       std::stringstream ss;
-       ss << std::this_thread::get_id();
-       pid = ss.str();
-   }
+   // ICPP PATCH
+   pid = "Unknown-pid (icpp-patch)";
+//    if (pid.empty())
+//    {
+//        // std::this_thread::get_id() is the most portable way of obtaining a "process id"
+//        //  it's not the same as "pid" but is unique enough to solve multiple instances
+//        //  trying to write to the same log.
+//        std::stringstream ss;
+//        ss << std::this_thread::get_id();
+//        pid = ss.str();
+//    }
 
    return pid;
 }
