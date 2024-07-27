@@ -108,3 +108,5 @@ examples/server/*.mjs.hpp
 poetry.lock
 poetry.toml
 nppBackup
+
+ggml/src/kompute
