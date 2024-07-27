@@ -1,3 +1,4 @@
+#include "ic_api.h"
 #if defined(_MSC_VER)
 #define _SILENCE_CXX17_CODECVT_HEADER_DEPRECATION_WARNING
 #endif
@@ -77,117 +78,116 @@
 
 using json = nlohmann::ordered_json;
 
-//
-// CPU utils
-//
-
-int32_t cpu_get_num_physical_cores() {
-#ifdef __linux__
-    // enumerate the set of thread siblings, num entries is num cores
-    std::unordered_set<std::string> siblings;
-    for (uint32_t cpu=0; cpu < UINT32_MAX; ++cpu) {
-        std::ifstream thread_siblings("/sys/devices/system/cpu/cpu"
-            + std::to_string(cpu) + "/topology/thread_siblings");
-        if (!thread_siblings.is_open()) {
-            break; // no more cpus
-        }
-        std::string line;
-        if (std::getline(thread_siblings, line)) {
-            siblings.insert(line);
-        }
-    }
-    if (!siblings.empty()) {
-        return static_cast<int32_t>(siblings.size());
-    }
-#elif defined(__APPLE__) && defined(__MACH__)
-    int32_t num_physical_cores;
-    size_t len = sizeof(num_physical_cores);
-    int result = sysctlbyname("hw.perflevel0.physicalcpu", &num_physical_cores, &len, NULL, 0);
-    if (result == 0) {
-        return num_physical_cores;
-    }
-    result = sysctlbyname("hw.physicalcpu", &num_physical_cores, &len, NULL, 0);
-    if (result == 0) {
-        return num_physical_cores;
-    }
-#elif defined(_WIN32)
-    //TODO: Implement
-#endif
-    unsigned int n_threads = std::thread::hardware_concurrency();
+int32_t get_num_physical_cores() {
+// #ifdef __linux__
+//     // enumerate the set of thread siblings, num entries is num cores
+//     std::unordered_set<std::string> siblings;
+//     for (uint32_t cpu=0; cpu < UINT32_MAX; ++cpu) {
+//         std::ifstream thread_siblings("/sys/devices/system/cpu"
+//             + std::to_string(cpu) + "/topology/thread_siblings");
+//         if (!thread_siblings.is_open()) {
+//             break; // no more cpus
+//         }
+//         std::string line;
+//         if (std::getline(thread_siblings, line)) {
+//             siblings.insert(line);
+//         }
+//     }
+//     if (!siblings.empty()) {
+//         return static_cast<int32_t>(siblings.size());
+//     }
+// #elif defined(__APPLE__) && defined(__MACH__)
+//     int32_t num_physical_cores;
+//     size_t len = sizeof(num_physical_cores);
+//     int result = sysctlbyname("hw.perflevel0.physicalcpu", &num_physical_cores, &len, NULL, 0);
+//     if (result == 0) {
+//         return num_physical_cores;
+//     }
+//     result = sysctlbyname("hw.physicalcpu", &num_physical_cores, &len, NULL, 0);
+//     if (result == 0) {
+//         return num_physical_cores;
+//     }
+// #elif defined(_WIN32)
+//     //TODO: Implement
+// #endif
+    // ICPP-PATCH
+    // unsigned int n_threads = std::thread::hardware_concurrency(); 
+    unsigned int n_threads = 1;
     return n_threads > 0 ? (n_threads <= 4 ? n_threads : n_threads / 2) : 4;
 }
 
-#if defined(__x86_64__) && defined(__linux__) && !defined(__ANDROID__)
-#include <pthread.h>
+// #if defined(__x86_64__) && defined(__linux__) && !defined(__ANDROID__)
+// #include <pthread.h>
 
-static void cpuid(unsigned leaf, unsigned subleaf,
-                  unsigned *eax, unsigned *ebx, unsigned *ecx, unsigned *edx) {
-    __asm__("movq\t%%rbx,%%rsi\n\t"
-            "cpuid\n\t"
-            "xchgq\t%%rbx,%%rsi"
-            : "=a"(*eax), "=S"(*ebx), "=c"(*ecx), "=d"(*edx)
-            : "0"(leaf), "2"(subleaf));
-}
+// static void cpuid(unsigned leaf, unsigned subleaf,
+//                   unsigned *eax, unsigned *ebx, unsigned *ecx, unsigned *edx) {
+//     __asm__("movq\t%%rbx,%%rsi\n\t"
+//             "cpuid\n\t"
+//             "xchgq\t%%rbx,%%rsi"
+//             : "=a"(*eax), "=S"(*ebx), "=c"(*ecx), "=d"(*edx)
+//             : "0"(leaf), "2"(subleaf));
+// }
 
-static int pin_cpu(int cpu) {
-    cpu_set_t mask;
-    CPU_ZERO(&mask);
-    CPU_SET(cpu, &mask);
-    return pthread_setaffinity_np(pthread_self(), sizeof(mask), &mask);
-}
+// static int pin_cpu(int cpu) {
+//     cpu_set_t mask;
+//     CPU_ZERO(&mask);
+//     CPU_SET(cpu, &mask);
+//     return pthread_setaffinity_np(pthread_self(), sizeof(mask), &mask);
+// }
 
-static bool is_hybrid_cpu(void) {
-    unsigned eax, ebx, ecx, edx;
-    cpuid(7, 0, &eax, &ebx, &ecx, &edx);
-    return !!(edx & (1u << 15));
-}
+// static bool is_hybrid_cpu(void) {
+//     unsigned eax, ebx, ecx, edx;
+//     cpuid(7, 0, &eax, &ebx, &ecx, &edx);
+//     return !!(edx & (1u << 15));
+// }
 
-static bool is_running_on_efficiency_core(void) {
-    unsigned eax, ebx, ecx, edx;
-    cpuid(0x1a, 0, &eax, &ebx, &ecx, &edx);
-    int intel_atom = 0x20;
-    int core_type = (eax & 0xff000000u) >> 24;
-    return core_type == intel_atom;
-}
+// static bool is_running_on_efficiency_core(void) {
+//     unsigned eax, ebx, ecx, edx;
+//     cpuid(0x1a, 0, &eax, &ebx, &ecx, &edx);
+//     int intel_atom = 0x20;
+//     int core_type = (eax & 0xff000000u) >> 24;
+//     return core_type == intel_atom;
+// }
 
-static int cpu_count_math_cpus(int n_cpu) {
-    int result = 0;
-    for (int cpu = 0; cpu < n_cpu; ++cpu) {
-        if (pin_cpu(cpu)) {
-            return -1;
-        }
-        if (is_running_on_efficiency_core()) {
-            continue; // efficiency cores harm lockstep threading
-        }
-        ++cpu; // hyperthreading isn't useful for linear algebra
-        ++result;
-    }
-    return result;
-}
+// static int count_math_cpus(int cpu_count) {
+//     int result = 0;
+//     for (int cpu = 0; cpu < cpu_count; ++cpu) {
+//         if (pin_cpu(cpu)) {
+//             return -1;
+//         }
+//         if (is_running_on_efficiency_core()) {
+//             continue; // efficiency cores harm lockstep threading
+//         }
+//         ++cpu; // hyperthreading isn't useful for linear algebra
+//         ++result;
+//     }
+//     return result;
+// }
 
-#endif // __x86_64__ && __linux__
+// #endif // __x86_64__ && __linux__
 
 /**
  * Returns number of CPUs on system that are useful for math.
  */
 int32_t cpu_get_num_math() {
-#if defined(__x86_64__) && defined(__linux__) && !defined(__ANDROID__)
-    int n_cpu = sysconf(_SC_NPROCESSORS_ONLN);
-    if (n_cpu < 1) {
-        return cpu_get_num_physical_cores();
-    }
-    if (is_hybrid_cpu()) {
-        cpu_set_t affinity;
-        if (!pthread_getaffinity_np(pthread_self(), sizeof(affinity), &affinity)) {
-            int result = cpu_count_math_cpus(n_cpu);
-            pthread_setaffinity_np(pthread_self(), sizeof(affinity), &affinity);
-            if (result > 0) {
-                return result;
-            }
-        }
-    }
-#endif
-    return cpu_get_num_physical_cores();
+// #if defined(__x86_64__) && defined(__linux__) && !defined(__ANDROID__)
+//     int n_cpu = sysconf(_SC_NPROCESSORS_ONLN);
+//     if (n_cpu < 1) {
+//         return cpu_get_num_physical_cores();
+//     }
+//     if (is_hybrid_cpu()) {
+//         cpu_set_t affinity;
+//         if (!pthread_getaffinity_np(pthread_self(), sizeof(affinity), &affinity)) {
+//             int result = cpu_count_math_cpus(n_cpu);
+//             pthread_setaffinity_np(pthread_self(), sizeof(affinity), &affinity);
+//             if (result > 0) {
+//                 return result;
+//             }
+//         }
+//     }
+// #endif
+    // return cpu_get_num_physical_cores();
+    return 1;
 }
 
 //
@@ -205,7 +205,7 @@ void gpt_params_handle_model_default(gpt_params & params) {
         // short-hand to avoid specifying --hf-file -> default it to --model
         if (params.hf_file.empty()) {
             if (params.model.empty()) {
-                throw std::invalid_argument("error: --hf-repo requires either --hf-file or --model\n");
+                IC_API::trap(std::string("INVALID ARGUMENT: ") + "error: --hf-repo requires either --hf-file or --model\n");
             }
             params.hf_file = params.model;
         } else if (params.model.empty()) {
@@ -234,15 +234,15 @@ bool gpt_params_parse_ex(int argc, char ** argv, gpt_params & params) {
             std::replace(arg.begin(), arg.end(), '_', '-');
         }
         if (!gpt_params_find_arg(argc, argv, arg, params, i, invalid_param)) {
-            throw std::invalid_argument("error: unknown argument: " + arg);
+            IC_API::trap(std::string("INVALID ARGUMENT: ") + "unknown argument: " + arg);
         }
         if (invalid_param) {
-            throw std::invalid_argument("error: invalid parameter for argument: " + arg);
+            IC_API::trap(std::string("INVALID ARGUMENT: ") + "invalid parameter for argument: " + arg);
         }
     }
 
     if (params.prompt_cache_all && (params.interactive || params.interactive_first)) {
-        throw std::invalid_argument("error: --prompt-cache-all not supported in interactive mode yet\n");
+        IC_API::trap(std::string("INVALID ARGUMENT: ") + "--prompt-cache-all not supported in interactive mode yet ");
     }
 
     gpt_params_handle_model_default(params);
@@ -270,17 +270,17 @@ bool gpt_params_parse_ex(int argc, char ** argv, gpt_params & params) {
 bool gpt_params_parse(int argc, char ** argv, gpt_params & params) {
     const auto params_org = params; // the example can modify the default params
 
-    try {
+    // try {
         if (!gpt_params_parse_ex(argc, argv, params) || params.usage) {
             params = params_org;
             params.usage = true;
             return false;
         }
-    } catch (const std::invalid_argument & ex) {
-        fprintf(stderr, "%s\n", ex.what());
-        params = params_org;
-        return false;
-    }
+    // } catch (const std::invalid_argument & ex) {
+    //     fprintf(stderr, "%s\n", ex.what());
+    //     params = params_org;
+    //     return false;
+    // }
 
     return true;
 }
@@ -303,7 +303,8 @@ bool gpt_params_find_arg(int argc, char ** argv, const std::string & arg, gpt_pa
         CHECK_ARG
         params.n_threads = std::stoi(argv[i]);
         if (params.n_threads <= 0) {
-            params.n_threads = std::thread::hardware_concurrency();
+            params.n_threads = 1;
+            // params.n_threads = std::thread::hardware_concurrency();
         }
         return true;
     }
@@ -311,7 +312,8 @@ bool gpt_params_find_arg(int argc, char ** argv, const std::string & arg, gpt_pa
         CHECK_ARG
         params.n_threads_batch = std::stoi(argv[i]);
         if (params.n_threads_batch <= 0) {
-            params.n_threads_batch = std::thread::hardware_concurrency();
+            params.n_threads_batch = 1;
+            // params.n_threads_batch = std::thread::hardware_concurrency();
         }
         return true;
     }
@@ -319,7 +321,8 @@ bool gpt_params_find_arg(int argc, char ** argv, const std::string & arg, gpt_pa
         CHECK_ARG
         params.n_threads_draft = std::stoi(argv[i]);
         if (params.n_threads_draft <= 0) {
-            params.n_threads_draft = std::thread::hardware_concurrency();
+            params.n_threads_draft = 1;
+            // params.n_threads_draft = std::thread::hardware_concurrency();
         }
         return true;
     }
@@ -327,7 +330,8 @@ bool gpt_params_find_arg(int argc, char ** argv, const std::string & arg, gpt_pa
         CHECK_ARG
         params.n_threads_batch_draft = std::stoi(argv[i]);
         if (params.n_threads_batch_draft <= 0) {
-            params.n_threads_batch_draft = std::thread::hardware_concurrency();
+            params.n_threads_batch_draft = 1;
+            // params.n_threads_batch_draft = std::thread::hardware_concurrency();
         }
         return true;
     }
@@ -1019,18 +1023,20 @@ bool gpt_params_find_arg(int argc, char ** argv, const std::string & arg, gpt_pa
         llama_token key;
         char sign;
         std::string value_str;
-        try {
+        // try {
             if (ss >> key && ss >> sign && std::getline(ss, value_str) && (sign == '+' || sign == '-')) {
                 sparams.logit_bias[key] = std::stof(value_str) * ((sign == '-') ? -1.0f : 1.0f);
             }
             else {
-                throw std::exception();
+                // throw std::exception();
+                invalid_param = true; //icpp-patch
+                return true; //icpp-patch
             }
-        }
-        catch (const std::exception&) {
-            invalid_param = true;
-            return true;
-        }
+        // }
+        // catch (const std::exception&) {
+        //     invalid_param = true;
+        //     return true;
+        // }
         return true;
     }
     if (arg == "-h" || arg == "--help" || arg == "--usage"  ) {
@@ -1709,7 +1715,9 @@ std::string gpt_params_get_system_info(const gpt_params & params) {
     if (params.n_threads_batch != -1) {
         os << " (n_threads_batch = " << params.n_threads_batch << ")";
     }
-    os << " / " << std::thread::hardware_concurrency() << " | " << llama_print_system_info();
+    //icpp-patch
+    // os << " / " << std::thread::hardware_concurrency() << " | " << llama_print_system_info();
+    os << " / " << 1 << " | " << llama_print_system_info();
 
     return os.str();
 }
@@ -1861,7 +1869,7 @@ bool fs_validate_filename(const std::string & filename) {
     }
 
     std::u32string filename_utf32;
-    try {
+    // try {
         std::wstring_convert<std::codecvt_utf8<char32_t>, char32_t> converter;
         filename_utf32 = converter.from_bytes(filename);
 
@@ -1871,9 +1879,9 @@ bool fs_validate_filename(const std::string & filename) {
         if (filename_reencoded != filename) {
             return false;
         }
-    } catch (const std::exception &) {
-        return false;
-    }
+    // } catch (const std::exception &) {
+    //     return false;
+    // }
 
     // Check for forbidden codepoints:
     // - Control characters
@@ -2023,7 +2031,7 @@ std::string fs_get_cache_file(const std::string & filename) {
     std::string cache_directory = fs_get_cache_directory();
     const bool success = fs_create_directory_with_parents(cache_directory);
     if (!success) {
-        throw std::runtime_error("failed to create cache directory: " + cache_directory);
+        IC_API::trap(std::string("RUNTIME ERROR: ") + "failed to create cache directory: " + cache_directory);
     }
     return cache_directory + filename;
 }
@@ -2180,7 +2188,8 @@ static ggml_type kv_cache_type_from_str(const std::string & s) {
         return GGML_TYPE_Q5_1;
     }
 
-    throw std::runtime_error("Invalid cache type: " + s);
+    IC_API::trap(std::string("RUNTIME ERROR: ") + "Invalid cache type: " + s);
+    return GGML_TYPE_F32; //icpp-patch: must return something
 }
 
 struct llama_context_params llama_context_params_from_gpt_params(const gpt_params & params) {
@@ -2694,7 +2703,7 @@ std::string llama_chat_apply_template(const struct llama_model * model,
         if (ptr_tmpl != nullptr) {
             // if the custom "tmpl" is not supported, we throw an error
             // this is a bit redundant (for good), since we're not sure if user validated the custom template with llama_chat_verify_template()
-            throw std::runtime_error("this custom template is not supported");
+            IC_API::trap(std::string("RUNTIME ERROR: ") + "this custom template is not supported");
         } else {
             // If the built-in template is not supported, we default to chatml
             res = llama_chat_apply_template(nullptr, "chatml", chat.data(), chat.size(), add_ass, buf.data(), buf.size());
@@ -2912,11 +2921,11 @@ static llama_control_vector_data llama_control_vector_load_one(const llama_contr
         // split on '.'
         size_t dotpos = name.find('.');
         if (dotpos != std::string::npos && name.substr(0, dotpos) == "direction") {
-            try {
+            //try {
                 layer_idx = std::stoi(name.substr(dotpos + 1));
-            } catch (...) {
-                layer_idx = -1;
-            }
+            //} catch (...) {
+            //    layer_idx = -1;
+            //}
         }
         if (layer_idx < 0) {
             fprintf(stderr, "%s: invalid/unparsable direction tensor layer index in %s\n", __func__, load_info.fname.c_str());
@@ -3214,7 +3223,9 @@ void yaml_dump_non_result_info(FILE * stream, const gpt_params & params, const l
     yaml_dump_vector_float(stream, "tensor_split", tensor_split_vector);
 
     fprintf(stream, "tfs: %f # default: 1.0\n", sparams.tfs_z);
-    fprintf(stream, "threads: %d # default: %u\n", params.n_threads, std::thread::hardware_concurrency());
+    //icpp-patch
+    // fprintf(stream, "threads: %d # default: %u\n", params.n_threads, std::thread::hardware_concurrency());
+    fprintf(stream, "threads: %d # default: %u\n", params.n_threads, 1);
     fprintf(stream, "top_k: %d # default: 40\n", sparams.top_k);
     fprintf(stream, "top_p: %f # default: 0.95\n", sparams.top_p);
     fprintf(stream, "min_p: %f # default: 0.0\n", sparams.min_p);

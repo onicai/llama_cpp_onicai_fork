@@ -1,3 +1,4 @@
+#include "ic_api.h"
 #include "json-schema-to-grammar.h"
 #include <algorithm>
 #include <fstream>
@@ -71,7 +72,7 @@ public:
     char operator[](size_t pos) const {
         auto index = _start + pos;
         if (index >= _end) {
-            throw std::out_of_range("string_view index out of range");
+            IC_API::trap(std::string("RUNTIME ERROR: ") + "string_view index out of range");
         }
         return _str[_start + pos];
     }
@@ -264,7 +265,7 @@ static void _build_min_max_int(int min_value, int max_value, std::stringstream &
         return;
     }
 
-    throw std::runtime_error("At least one of min_value or max_value must be set");
+    IC_API::trap(std::string("RUNTIME ERROR: ") + "At least one of min_value or max_value must be set");
 }
 
 const std::string SPACE_RULE = "| \" \" | \"\\n\" [ \\t]{0,20}";
@@ -542,7 +543,7 @@ private:
                     auto nums = split(curly_brackets.substr(1, curly_brackets.length() - 2), ",");
                     int min_times = 0;
                     int max_times = std::numeric_limits<int>::max();
-                    try {
+                    // try {
                         if (nums.size() == 1) {
                             min_times = max_times = std::stoi(nums[0]);
                         } else if (nums.size() != 2) {
@@ -555,10 +556,10 @@ private:
                                 max_times = std::stoi(nums[1]);
                             }
                         }
-                    } catch (const std::invalid_argument & e) {
-                        _errors.push_back("Invalid number in curly brackets");
-                        return std::make_pair("", false);
-                    }
+                    // } catch (const std::invalid_argument & e) {
+                    //     _errors.push_back("Invalid number in curly brackets");
+                    //     return std::make_pair("", false);
+                    // }
                     auto &last = seq.back();
                     auto &sub = last.first;
                     auto sub_is_literal = last.second;
@@ -1019,7 +1020,7 @@ public:
 
     void check_errors() {
         if (!_errors.empty()) {
-            throw std::runtime_error("JSON schema conversion failed:\n" + join(_errors.begin(), _errors.end(), "\n"));
+            IC_API::trap(std::string("RUNTIME ERROR: ") + "JSON schema conversion failed:\n" + join(_errors.begin(), _errors.end(), "\n"));
         }
         if (!_warnings.empty()) {
             fprintf(stderr, "WARNING: JSON schema conversion was incomplete: %s\n", join(_warnings.begin(), _warnings.end(), "; ").c_str());
