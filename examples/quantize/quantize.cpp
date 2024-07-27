@@ -163,9 +163,10 @@ static int load_imatrix(const std::string & imatrix_file, std::string & imatrix_
             for (auto& v : e) v /= ncall;
         }
 
-        if (getenv("LLAMA_TRACE")) {
-            printf("%s: loaded data (size = %6d, ncall = %6d) for '%s'\n", __func__, int(e.size()), ncall, name.c_str());
-        }
+        // icpp-patch: no getenv
+        // if (getenv("LLAMA_TRACE")) {
+        //     printf("%s: loaded data (size = %6d, ncall = %6d) for '%s'\n", __func__, int(e.size()), ncall, name.c_str());
+        // }
     }
 
     // latest imatrix version contains the dataset filename at the end of the file
