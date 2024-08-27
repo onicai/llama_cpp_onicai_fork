@@ -1445,7 +1445,8 @@ llama_token_attr llama_token_get_attr_impl(const struct llama_vocab & vocab, lla
 bool llama_token_is_eog_impl(const struct llama_vocab & vocab, llama_token token) {
     return token != -1 && (
         token == llama_token_eos_impl(vocab) ||
-        token == llama_token_eot_impl(vocab)
+        token == llama_token_eot_impl(vocab) || 
+        token == llama_token_bos_impl(vocab) // ICPP-PATCH: the llama2.c model predicts bos without first predicting an eos
     );
 }
 
