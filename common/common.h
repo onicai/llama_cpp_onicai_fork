@@ -31,7 +31,11 @@
     fprintf(stderr, "%s: built with %s for %s\n", __func__, LLAMA_COMPILER, LLAMA_BUILD_TARGET);    \
 } while(0)
 
-#define DEFAULT_MODEL_PATH "models/7B/ggml-model-f16.gguf"
+// ICPP-PATCH-START
+// We do NOT load a default model into the canister
+// #define DEFAULT_MODEL_PATH "models/7B/ggml-model-f16.gguf"
+#define DEFAULT_MODEL_PATH ""
+// ICPP-PATCH-END
 
 // build info
 extern int LLAMA_BUILD_NUMBER;
