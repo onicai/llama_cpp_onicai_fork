@@ -180,7 +180,14 @@ struct gpt_params {
     bool infill            = false; // use infill mode
     bool dump_kv_cache     = false; // dump the KV cache contents for debugging purposes
     bool no_kv_offload     = false; // disable KV offloading
-    bool warmup            = true;  // warmup run
+    // ICPP-PATCH-START
+    // We don't do a warmup as part of model loading.
+    // This allows to use larger models without hitting the instruction limit in:
+    // common.cpp::llama_init_from_gpt_params
+    //
+    // bool warmup            = true;  // warmup run
+    bool warmup            = false;  // warmup run
+    // ICPP-PATCH-END
     bool check_tensors     = false; // validate tensor data
 
     std::string cache_type_k = "f16"; // KV cache data type for the K
