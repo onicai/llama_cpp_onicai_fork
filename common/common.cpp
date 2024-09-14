@@ -2044,6 +2044,7 @@ std::string fs_get_cache_file(const std::string & filename) {
 //
 
 std::tuple<struct llama_model *, struct llama_context *> llama_init_from_gpt_params(gpt_params & params) {
+    std::cout << __func__ << ": icpp-debug 1 " << std::endl;
     auto mparams = llama_model_params_from_gpt_params(params);
 
     llama_model * model = nullptr;
@@ -2055,6 +2056,7 @@ std::tuple<struct llama_model *, struct llama_context *> llama_init_from_gpt_par
     } else {
         model = llama_load_model_from_file(params.model.c_str(), mparams);
     }
+    std::cout << __func__ << ": icpp-debug 2 " << std::endl;
 
     if (model == NULL) {
         fprintf(stderr, "%s: error: failed to load model '%s'\n", __func__, params.model.c_str());
@@ -2062,6 +2064,7 @@ std::tuple<struct llama_model *, struct llama_context *> llama_init_from_gpt_par
     }
 
     auto cparams = llama_context_params_from_gpt_params(params);
+    std::cout << __func__ << ": icpp-debug 3 " << std::endl;
 
     llama_context * lctx = llama_new_context_with_model(model, cparams);
     if (lctx == NULL) {
@@ -2069,8 +2072,10 @@ std::tuple<struct llama_model *, struct llama_context *> llama_init_from_gpt_par
         llama_free_model(model);
         return std::make_tuple(nullptr, nullptr);
     }
+    std::cout << __func__ << ": icpp-debug 4 " << std::endl;
 
     if (!params.control_vectors.empty()) {
+        std::cout << __func__ << ": icpp-debug 5 " << std::endl;
         if (params.control_vector_layer_start <= 0) params.control_vector_layer_start = 1;
         if (params.control_vector_layer_end   <= 0) params.control_vector_layer_end   = llama_n_layer(model);
 
@@ -2092,7 +2097,9 @@ std::tuple<struct llama_model *, struct llama_context *> llama_init_from_gpt_par
             llama_free_model(model);
             return std::make_tuple(nullptr, nullptr);
         }
+        std::cout << __func__ << ": icpp-debug 6 " << std::endl;
     }
+    std::cout << __func__ << ": icpp-debug 7 " << std::endl;
 
     for (unsigned int i = 0; i < params.lora_adapter.size(); ++i) {
         const std::string & lora_adapter = std::get<0>(params.lora_adapter[i]);
@@ -2106,13 +2113,15 @@ std::tuple<struct llama_model *, struct llama_context *> llama_init_from_gpt_par
         }
         llama_lora_adapter_set(lctx, adapter, lora_scale);
     }
+    std::cout << __func__ << ": icpp-debug 8 " << std::endl;
 
     if (params.ignore_eos) {
         params.sparams.logit_bias[llama_token_eos(model)] = -INFINITY;
     }
 
     if (params.warmup) {
-        LOG("warming up the model with an empty run\n");
+        std::cout << __func__ << ": icpp-debug 9 " << std::endl;
+        LOG_TEE("warming up the model with an empty run\n");
 
         std::vector<llama_token> tmp;
         llama_token bos = llama_token_bos(model);
@@ -2137,6 +2146,7 @@ std::tuple<struct llama_model *, struct llama_context *> llama_init_from_gpt_par
         llama_synchronize(lctx);
         llama_reset_timings(lctx);
     }
+    std::cout << __func__ << ": icpp-debug 10 " << std::endl;
 
     return std::make_tuple(model, lctx);
 }
