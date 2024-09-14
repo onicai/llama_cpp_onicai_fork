@@ -1,3 +1,5 @@
+#include <iostream> // ICPP-PATCH: for debug print statements
+
 #include "ic_api.h"
 #include "llama-impl.h"
 #include "llama-vocab.h"
@@ -17737,10 +17739,13 @@ size_t llama_state_set_data(struct llama_context * ctx, const uint8_t * src) {
 }
 
 static bool llama_state_load_file_internal(struct llama_context * ctx, const char * path_session, llama_token * tokens_out, size_t n_token_capacity, size_t * n_token_count_out) {
+    std::cout << __func__ << ": icpp-debug 1 " << std::endl;
     llama_file file(path_session, "rb");
+    std::cout << __func__ << ": icpp-debug 2 " << std::endl;
 
     // sanity checks
     {
+        std::cout << __func__ << ": icpp-debug 3 " << std::endl;
         const uint32_t magic   = file.read_u32();
         const uint32_t version = file.read_u32();
 
@@ -17749,8 +17754,10 @@ static bool llama_state_load_file_internal(struct llama_context * ctx, const cha
             return false;
         }
 
+        std::cout << __func__ << ": icpp-debug 4 " << std::endl;
         llama_hparams session_hparams;
         file.read_raw(&session_hparams, sizeof(llama_hparams));
+        std::cout << __func__ << ": icpp-debug 5 " << std::endl;
 
         if (session_hparams != ctx->model.hparams) {
             LLAMA_LOG_INFO("%s : model hparams didn't match from session file!\n", __func__);
@@ -17760,7 +17767,9 @@ static bool llama_state_load_file_internal(struct llama_context * ctx, const cha
 
     // load the prompt
     {
+        std::cout << __func__ << ": icpp-debug 6 " << std::endl;
         const uint32_t n_token_count = file.read_u32();
+        std::cout << __func__ << ": icpp-debug 7 " << std::endl;
 
         if (n_token_count > n_token_capacity) {
             LLAMA_LOG_ERROR("%s : token count in session file exceeded capacity! %u > %zu\n", __func__, n_token_count, n_token_capacity);
@@ -17768,23 +17777,37 @@ static bool llama_state_load_file_internal(struct llama_context * ctx, const cha
         }
 
         file.read_raw(tokens_out, sizeof(llama_token) * n_token_count);
+        std::cout << __func__ << ": icpp-debug 8 " << std::endl;
         *n_token_count_out = n_token_count;
     }
 
     // restore the context state
     {
+        std::cout << __func__ << ": icpp-debug 9 " << std::endl;
         const size_t n_state_size_cur = file.size - file.tell();
+        std::cout << __func__ << ": icpp-debug 10 " << std::endl;
         const size_t n_state_size_max = llama_state_get_size(ctx);
+        std::cout << __func__ << ": icpp-debug 11 " << std::endl;
 
         if (n_state_size_cur > n_state_size_max) {
             LLAMA_LOG_ERROR("%s : the state size in session file is too big! max %zu, got %zu\n", __func__, n_state_size_max, n_state_size_cur);
             return false;
         }
 
-        std::vector<uint8_t> state_data(n_state_size_max);
+        std::cout << __func__ << ": icpp-debug 12 " << std::endl;
+        std::cout << __func__ << ": icpp-debug n_state_size_cur = " << n_state_size_cur << std::endl;
+        std::cout << __func__ << ": icpp-debug n_state_size_max = " << n_state_size_max << std::endl;
+        // ICPP-PATCH-START
+        // No need to open with the max size, which, for large models, will exceed the available memory on wasm32
+        // std::vector<uint8_t> state_data(n_state_size_max);
+        std::vector<uint8_t> state_data(n_state_size_cur);
+        // ICPP-PATCH-END
+        std::cout << __func__ << ": icpp-debug 13 " << std::endl;
         file.read_raw(state_data.data(), n_state_size_cur);
+        std::cout << __func__ << ": icpp-debug 14 " << std::endl;
 
         llama_state_set_data(ctx, state_data.data());
+        std::cout << __func__ << ": icpp-debug 15 " << std::endl;
     }
 
     return true;
