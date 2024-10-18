@@ -181,12 +181,13 @@ struct gpt_params {
     bool dump_kv_cache     = false; // dump the KV cache contents for debugging purposes
     bool no_kv_offload     = false; // disable KV offloading
     // ICPP-PATCH-START
+    // CORRECTION: we need to do a warmup each time to clear out kv cache ????????????
     // We don't do a warmup as part of model loading.
     // This allows to use larger models without hitting the instruction limit in:
     // common.cpp::llama_init_from_gpt_params
     //
-    // bool warmup            = true;  // warmup run
-    bool warmup            = false;  // warmup run
+    bool warmup            = true;  // warmup run
+    // bool warmup            = false;  // warmup run
     // ICPP-PATCH-END
     bool check_tensors     = false; // validate tensor data
 
