@@ -1,3 +1,4 @@
+#include "ic_api.h
 #include "llama-sampling.h"
 
 #include "llama-impl.h"
@@ -24,35 +25,35 @@ struct ring_buffer {
 
     T & front() {
         if (sz == 0) {
-            throw std::runtime_error("ring buffer is empty");
+            IC_API::trap("ring buffer is empty");
         }
         return data[first];
     }
 
     const T & front() const {
         if (sz == 0) {
-            throw std::runtime_error("ring buffer is empty");
+            IC_API::trap("ring buffer is empty");
         }
         return data[first];
     }
 
     T & back() {
         if (sz == 0) {
-            throw std::runtime_error("ring buffer is empty");
+            IC_API::trap("ring buffer is empty");
         }
         return data[pos];
     }
 
     const T & back() const {
         if (sz == 0) {
-            throw std::runtime_error("ring buffer is empty");
+            IC_API::trap("ring buffer is empty");
         }
         return data[pos];
     }
 
     void push_back(const T & value) {
         if (capacity == 0) {
-            throw std::runtime_error("ring buffer: capacity is zero");
+            IC_API::trap("ring buffer: capacity is zero");
         }
 
         if (sz == capacity) {
@@ -67,7 +68,7 @@ struct ring_buffer {
 
     T pop_front() {
         if (sz == 0) {
-            throw std::runtime_error("ring buffer is empty");
+            IC_API::trap("ring buffer is empty");
         }
         T value = data[first];
         first = (first + 1) % capacity;
@@ -77,21 +78,21 @@ struct ring_buffer {
 
     //T & operator[](size_t i) {
     //    if (i >= sz) {
-    //        throw std::runtime_error("ring buffer: index out of bounds");
+    //        IC_API::trap("ring buffer: index out of bounds");
     //    }
     //    return data[(first + i) % capacity];
     //}
 
     //const T & at(size_t i) const {
     //    if (i >= sz) {
-    //        throw std::runtime_error("ring buffer: index out of bounds");
+    //        IC_API::trap("ring buffer: index out of bounds");
     //    }
     //    return data[(first + i) % capacity];
     //}
 
     const T & rat(size_t i) const {
         if (i >= sz) {
-            throw std::runtime_error("ring buffer: index out of bounds");
+            IC_API::trap("ring buffer: index out of bounds");
         }
         return data[(first + sz - i - 1) % capacity];
     }

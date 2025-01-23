@@ -1,3 +1,5 @@
+#include "ic_api.h"
+
 #include "llama-grammar.h"
 
 #include "llama-impl.h"
@@ -114,7 +116,7 @@ static std::pair<uint32_t, const char *> parse_hex(const char * src, int size) {
         }
     }
     if (pos != end) {
-        throw std::runtime_error("expecting " + std::to_string(size) + " hex chars at " + src);
+        IC_API::trap("expecting " + std::to_string(size) + " hex chars at " + src);
     }
     return std::make_pair(value, pos);
 }
@@ -140,7 +142,7 @@ static const char * parse_name(const char * src) {
         pos++;
     }
     if (pos == src) {
-        throw std::runtime_error(std::string("expecting name at ") + src);
+        IC_API::trap(std::string("expecting name at ") + src);
     }
     return pos;
 }
@@ -151,7 +153,7 @@ static const char * parse_int(const char * src) {
         pos++;
     }
     if (pos == src) {
-        throw std::runtime_error(std::string("expecting integer at ") + src);
+        IC_API::trap(std::string("expecting integer at ") + src);
     }
     return pos;
 }
@@ -171,12 +173,12 @@ static std::pair<uint32_t, const char *> parse_char(const char * src) {
             case ']':
                       return std::make_pair(src[1], src + 2);
             default:
-                      throw std::runtime_error(std::string("unknown escape at ") + src);
+                      IC_API::trap(std::string("unknown escape at ") + src);
         }
     } else if (*src) {
         return decode_utf8(src);
     }
-    throw std::runtime_error("unexpected end of input");
+    IC_API::trap("unexpected end of input");
 }
 
 static void print_grammar_char(FILE * file, uint32_t c) {
@@ -237,7 +239,7 @@ static void print_rule(
         const llama_grammar_rule & rule,
         const std::map<uint32_t, std::string> & symbol_id_names) {
     if (rule.empty() || rule.back().type != LLAMA_GRETYPE_END) {
-        throw std::runtime_error(
+        IC_API::trap(
             "malformed rule, does not end with LLAMA_GRETYPE_END: " + std::to_string(rule_id));
     }
     fprintf(file, "%s ::= ", symbol_id_names.at(rule_id).c_str());
@@ -245,7 +247,7 @@ static void print_rule(
         llama_grammar_element elem = rule[i];
         switch (elem.type) {
             case LLAMA_GRETYPE_END:
-                throw std::runtime_error(
+                IC_API::trap(
                     "unexpected end of rule: " + std::to_string(rule_id) + "," +
                     std::to_string(i));
             case LLAMA_GRETYPE_ALT:
@@ -264,7 +266,7 @@ static void print_rule(
                 break;
             case LLAMA_GRETYPE_CHAR_RNG_UPPER:
                 if (i == 0 || !is_char_element(rule[i - 1])) {
-                    throw std::runtime_error(
+                    IC_API::trap(
                         "LLAMA_GRETYPE_CHAR_RNG_UPPER without preceding char: " +
                         std::to_string(rule_id) + "," + std::to_string(i));
                 }
@@ -273,7 +275,7 @@ static void print_rule(
                 break;
             case LLAMA_GRETYPE_CHAR_ALT:
                 if (i == 0 || !is_char_element(rule[i - 1])) {
-                    throw std::runtime_error(
+                    IC_API::trap(
                         "LLAMA_GRETYPE_CHAR_ALT without preceding char: " +
                         std::to_string(rule_id) + "," + std::to_string(i));
                 }
@@ -348,7 +350,7 @@ const char * llama_grammar_parser::parse_sequence(
         auto handle_repetitions = [&](int min_times, int max_times) {
 
             if (last_sym_start == rule.size()) {
-                throw std::runtime_error(std::string("expecting preceding item to */+/?/{ at ") + pos);
+                IC_API::trap(std::string("expecting preceding item to */+/?/{ at ") + pos);
             }
 
             // apply transformation to previous symbol (last_sym_start to end) according to
@@ -404,7 +406,7 @@ const char * llama_grammar_parser::parse_sequence(
                 last_sym_start = rule.size();
                 while (*pos != '"') {
                     if (!*pos) {
-                        throw std::runtime_error("unexpected end of input");
+                        IC_API::trap("unexpected end of input");
                     }
                     auto char_pair = parse_char(pos);
                          pos       = char_pair.second;
@@ -421,7 +423,7 @@ const char * llama_grammar_parser::parse_sequence(
                 last_sym_start = rule.size();
                 while (*pos != ']') {
                     if (!*pos) {
-                        throw std::runtime_error("unexpected end of input");
+                        IC_API::trap("unexpected end of input");
                     }
                     auto char_pair = parse_char(pos);
                          pos       = char_pair.second;
@@ -432,7 +434,7 @@ const char * llama_grammar_parser::parse_sequence(
                     rule.push_back({type, char_pair.first});
                     if (pos[0] == '-' && pos[1] != ']') {
                         if (!pos[1]) {
-                            throw std::runtime_error("unexpected end of input");
+                            IC_API::trap("unexpected end of input");
                         }
                         auto endchar_pair = parse_char(pos + 1);
                              pos          = endchar_pair.second;
@@ -455,7 +457,7 @@ const char * llama_grammar_parser::parse_sequence(
                 // output reference to synthesized rule
                 rule.push_back({LLAMA_GRETYPE_RULE_REF, sub_rule_id});
                 if (*pos != ')') {
-                    throw std::runtime_error(std::string("expecting ')' at ") + pos);
+                    IC_API::trap(std::string("expecting ')' at ") + pos);
                 }
                 pos = parse_space(pos + 1, is_nested);
             } else if (*pos == '.') { // any char
@@ -475,7 +477,7 @@ const char * llama_grammar_parser::parse_sequence(
                 pos = parse_space(pos + 1, is_nested);
 
                 if (!is_digit_char(*pos)) {
-                    throw std::runtime_error(std::string("expecting an int at ") + pos);
+                    IC_API::trap(std::string("expecting an int at ") + pos);
                 }
                 const char * int_end = parse_int(pos);
                 int min_times = std::stoul(std::string(pos, int_end - pos));
@@ -496,11 +498,11 @@ const char * llama_grammar_parser::parse_sequence(
                     }
 
                     if (*pos != '}') {
-                        throw std::runtime_error(std::string("expecting '}' at ") + pos);
+                        IC_API::trap(std::string("expecting '}' at ") + pos);
                     }
                     pos = parse_space(pos + 1, is_nested);
                 } else {
-                    throw std::runtime_error(std::string("expecting ',' at ") + pos);
+                    IC_API::trap(std::string("expecting ',' at ") + pos);
                 }
                 handle_repetitions(min_times, max_times);
             } else {
@@ -518,7 +520,7 @@ const char * llama_grammar_parser::parse_rule(const char * src) {
         const std::string name(src, name_len);
 
         if (!(pos[0] == ':' && pos[1] == ':' && pos[2] == '=')) {
-            throw std::runtime_error(std::string("expecting ::= at ") + pos);
+            IC_API::trap(std::string("expecting ::= at ") + pos);
         }
         pos = parse_space(pos + 3, true);
 
@@ -529,13 +531,13 @@ const char * llama_grammar_parser::parse_rule(const char * src) {
         } else if (*pos == '\n') {
             pos++;
         } else if (*pos) {
-            throw std::runtime_error(std::string("expecting newline or end at ") + pos);
+            IC_API::trap(std::string("expecting newline or end at ") + pos);
         }
         return parse_space(pos, true);
     }
 
 bool llama_grammar_parser::parse(const char * src) {
-    try {
+    // try {
         const char * pos = parse_space(src, true);
         while (*pos) {
             pos = parse_rule(pos);
@@ -543,7 +545,7 @@ bool llama_grammar_parser::parse(const char * src) {
         // Validate the state to ensure that all rules are defined
         for (const auto & rule : rules) {
             if (rule.empty()) {
-                throw std::runtime_error("Undefined rule");
+                IC_API::trap("Undefined rule");
             }
             for (const auto & elem : rule) {
                 if (elem.type == LLAMA_GRETYPE_RULE_REF) {
@@ -552,24 +554,24 @@ bool llama_grammar_parser::parse(const char * src) {
                         // Get the name of the rule that is missing
                         for (const auto & kv : symbol_ids) {
                             if (kv.second == elem.value) {
-                                throw std::runtime_error("Undefined rule identifier '" + kv.first + "'");
+                                IC_API::trap("Undefined rule identifier '" + kv.first + "'");
                             }
                         }
                     }
                 }
             }
         }
-    } catch (const std::exception & err) {
-        fprintf(stderr, "%s: error parsing grammar: %s\n", __func__, err.what());
-        rules.clear();
-        return false;
-    }
+    // } catch (const std::exception & err) {
+    //     fprintf(stderr, "%s: error parsing grammar: %s\n", __func__, err.what());
+    //     rules.clear();
+    //     return false;
+    // }
 
     return true;
 }
 
 void llama_grammar_parser::print(FILE * file) {
-    try {
+    // try {
         std::map<uint32_t, std::string> symbol_id_names;
         for (const auto & kv : symbol_ids) {
             symbol_id_names[kv.second] = kv.first;
@@ -580,9 +582,9 @@ void llama_grammar_parser::print(FILE * file) {
             print_rule(file, uint32_t(i), rules[i], symbol_id_names);
             // fprintf(file, "\n");
         }
-    } catch (const std::exception & err) {
-        fprintf(stderr, "\n%s: error printing grammar: %s\n", __func__, err.what());
-    }
+    // } catch (const std::exception & err) {
+    //     fprintf(stderr, "\n%s: error printing grammar: %s\n", __func__, err.what());
+    // }
 }
 
 llama_grammar_stack llama_grammar_parser::c_rules() const {

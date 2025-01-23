@@ -12,6 +12,12 @@
 #include "json.hpp"
 #include "json-schema-to-grammar.h"
 #include "llama.h"
+
+// ICPP-PATCH-START
+#include "ic_api.h"
+extern llama_model ** g_model; // The global variable from main_.cpp
+// ICPP-PATCH-END
+
 #include "chat-template.hpp"
 
 #include <algorithm>
@@ -29,7 +35,7 @@
 #include <regex>
 #include <sstream>
 #include <string>
-#include <thread>
+// #include <thread>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -99,138 +105,140 @@ using json = nlohmann::ordered_json;
 //
 
 int32_t cpu_get_num_physical_cores() {
-#ifdef __linux__
-    // enumerate the set of thread siblings, num entries is num cores
-    std::unordered_set<std::string> siblings;
-    for (uint32_t cpu=0; cpu < UINT32_MAX; ++cpu) {
-        std::ifstream thread_siblings("/sys/devices/system/cpu/cpu"
-            + std::to_string(cpu) + "/topology/thread_siblings");
-        if (!thread_siblings.is_open()) {
-            break; // no more cpus
-        }
-        std::string line;
-        if (std::getline(thread_siblings, line)) {
-            siblings.insert(line);
-        }
-    }
-    if (!siblings.empty()) {
-        return static_cast<int32_t>(siblings.size());
-    }
-#elif defined(__APPLE__) && defined(__MACH__)
-    int32_t num_physical_cores;
-    size_t len = sizeof(num_physical_cores);
-    int result = sysctlbyname("hw.perflevel0.physicalcpu", &num_physical_cores, &len, NULL, 0);
-    if (result == 0) {
-        return num_physical_cores;
-    }
-    result = sysctlbyname("hw.physicalcpu", &num_physical_cores, &len, NULL, 0);
-    if (result == 0) {
-        return num_physical_cores;
-    }
-#elif defined(_WIN32) && (_WIN32_WINNT >= 0x0601) && !defined(__MINGW64__) // windows 7 and later
-    // TODO: windows + arm64 + mingw64
-    unsigned int n_threads_win = std::thread::hardware_concurrency();
-    unsigned int default_threads = n_threads_win > 0 ? (n_threads_win <= 4 ? n_threads_win : n_threads_win / 2) : 4;
+// #ifdef __linux__
+//     // enumerate the set of thread siblings, num entries is num cores
+//     std::unordered_set<std::string> siblings;
+//     for (uint32_t cpu=0; cpu < UINT32_MAX; ++cpu) {
+//         std::ifstream thread_siblings("/sys/devices/system/cpu/cpu"
+//             + std::to_string(cpu) + "/topology/thread_siblings");
+//         if (!thread_siblings.is_open()) {
+//             break; // no more cpus
+//         }
+//         std::string line;
+//         if (std::getline(thread_siblings, line)) {
+//             siblings.insert(line);
+//         }
+//     }
+//     if (!siblings.empty()) {
+//         return static_cast<int32_t>(siblings.size());
+//     }
+// #elif defined(__APPLE__) && defined(__MACH__)
+//     int32_t num_physical_cores;
+//     size_t len = sizeof(num_physical_cores);
+//     int result = sysctlbyname("hw.perflevel0.physicalcpu", &num_physical_cores, &len, NULL, 0);
+//     if (result == 0) {
+//         return num_physical_cores;
+//     }
+//     result = sysctlbyname("hw.physicalcpu", &num_physical_cores, &len, NULL, 0);
+//     if (result == 0) {
+//         return num_physical_cores;
+//     }
+// #elif defined(_WIN32) && (_WIN32_WINNT >= 0x0601) && !defined(__MINGW64__) // windows 7 and later
+//     // TODO: windows + arm64 + mingw64
+//     unsigned int n_threads_win = std::thread::hardware_concurrency();
+//     unsigned int default_threads = n_threads_win > 0 ? (n_threads_win <= 4 ? n_threads_win : n_threads_win / 2) : 4;
 
-    DWORD buffer_size = 0;
-    if (!GetLogicalProcessorInformationEx(RelationProcessorCore, nullptr, &buffer_size)) {
-        if (GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
-            return default_threads;
-        }
-    }
+//     DWORD buffer_size = 0;
+//     if (!GetLogicalProcessorInformationEx(RelationProcessorCore, nullptr, &buffer_size)) {
+//         if (GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
+//             return default_threads;
+//         }
+//     }
 
-    std::vector<char> buffer(buffer_size);
-    if (!GetLogicalProcessorInformationEx(RelationProcessorCore, reinterpret_cast<PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX>(buffer.data()), &buffer_size)) {
-        return default_threads;
-    }
+//     std::vector<char> buffer(buffer_size);
+//     if (!GetLogicalProcessorInformationEx(RelationProcessorCore, reinterpret_cast<PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX>(buffer.data()), &buffer_size)) {
+//         return default_threads;
+//     }
 
-    int32_t num_physical_cores = 0;
-    PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX info = reinterpret_cast<PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX>(buffer.data());
-    while (buffer_size > 0) {
-        if (info->Relationship == RelationProcessorCore) {
-            num_physical_cores += info->Processor.GroupCount;
-        }
-        buffer_size -= info->Size;
-        info = reinterpret_cast<PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX>(reinterpret_cast<char*>(info) + info->Size);
-    }
+//     int32_t num_physical_cores = 0;
+//     PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX info = reinterpret_cast<PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX>(buffer.data());
+//     while (buffer_size > 0) {
+//         if (info->Relationship == RelationProcessorCore) {
+//             num_physical_cores += info->Processor.GroupCount;
+//         }
+//         buffer_size -= info->Size;
+//         info = reinterpret_cast<PSYSTEM_LOGICAL_PROCESSOR_INFORMATION_EX>(reinterpret_cast<char*>(info) + info->Size);
+//     }
 
-    return num_physical_cores > 0 ? num_physical_cores : default_threads;
-#endif
-    unsigned int n_threads = std::thread::hardware_concurrency();
+//     return num_physical_cores > 0 ? num_physical_cores : default_threads;
+// #endif
+//     unsigned int n_threads = std::thread::hardware_concurrency();
+    unsigned int n_threads = 1;
     return n_threads > 0 ? (n_threads <= 4 ? n_threads : n_threads / 2) : 4;
 }
 
-#if defined(__x86_64__) && defined(__linux__) && !defined(__ANDROID__)
-#include <pthread.h>
+// #if defined(__x86_64__) && defined(__linux__) && !defined(__ANDROID__)
+// #include <pthread.h>
 
-static void cpuid(unsigned leaf, unsigned subleaf,
-                  unsigned *eax, unsigned *ebx, unsigned *ecx, unsigned *edx) {
-    __asm__("movq\t%%rbx,%%rsi\n\t"
-            "cpuid\n\t"
-            "xchgq\t%%rbx,%%rsi"
-            : "=a"(*eax), "=S"(*ebx), "=c"(*ecx), "=d"(*edx)
-            : "0"(leaf), "2"(subleaf));
-}
+// static void cpuid(unsigned leaf, unsigned subleaf,
+//                   unsigned *eax, unsigned *ebx, unsigned *ecx, unsigned *edx) {
+//     __asm__("movq\t%%rbx,%%rsi\n\t"
+//             "cpuid\n\t"
+//             "xchgq\t%%rbx,%%rsi"
+//             : "=a"(*eax), "=S"(*ebx), "=c"(*ecx), "=d"(*edx)
+//             : "0"(leaf), "2"(subleaf));
+// }
 
-static int pin_cpu(int cpu) {
-    cpu_set_t mask;
-    CPU_ZERO(&mask);
-    CPU_SET(cpu, &mask);
-    return pthread_setaffinity_np(pthread_self(), sizeof(mask), &mask);
-}
+// static int pin_cpu(int cpu) {
+//     cpu_set_t mask;
+//     CPU_ZERO(&mask);
+//     CPU_SET(cpu, &mask);
+//     return pthread_setaffinity_np(pthread_self(), sizeof(mask), &mask);
+// }
 
-static bool is_hybrid_cpu(void) {
-    unsigned eax, ebx, ecx, edx;
-    cpuid(7, 0, &eax, &ebx, &ecx, &edx);
-    return !!(edx & (1u << 15));
-}
+// static bool is_hybrid_cpu(void) {
+//     unsigned eax, ebx, ecx, edx;
+//     cpuid(7, 0, &eax, &ebx, &ecx, &edx);
+//     return !!(edx & (1u << 15));
+// }
 
-static bool is_running_on_efficiency_core(void) {
-    unsigned eax, ebx, ecx, edx;
-    cpuid(0x1a, 0, &eax, &ebx, &ecx, &edx);
-    int intel_atom = 0x20;
-    int core_type = (eax & 0xff000000u) >> 24;
-    return core_type == intel_atom;
-}
+// static bool is_running_on_efficiency_core(void) {
+//     unsigned eax, ebx, ecx, edx;
+//     cpuid(0x1a, 0, &eax, &ebx, &ecx, &edx);
+//     int intel_atom = 0x20;
+//     int core_type = (eax & 0xff000000u) >> 24;
+//     return core_type == intel_atom;
+// }
 
-static int cpu_count_math_cpus(int n_cpu) {
-    int result = 0;
-    for (int cpu = 0; cpu < n_cpu; ++cpu) {
-        if (pin_cpu(cpu)) {
-            return -1;
-        }
-        if (is_running_on_efficiency_core()) {
-            continue; // efficiency cores harm lockstep threading
-        }
-        ++cpu; // hyperthreading isn't useful for linear algebra
-        ++result;
-    }
-    return result;
-}
+// static int cpu_count_math_cpus(int n_cpu) {
+//     int result = 0;
+//     for (int cpu = 0; cpu < n_cpu; ++cpu) {
+//         if (pin_cpu(cpu)) {
+//             return -1;
+//         }
+//         if (is_running_on_efficiency_core()) {
+//             continue; // efficiency cores harm lockstep threading
+//         }
+//         ++cpu; // hyperthreading isn't useful for linear algebra
+//         ++result;
+//     }
+//     return result;
+// }
 
-#endif // __x86_64__ && __linux__
+// #endif // __x86_64__ && __linux__
 
 /**
  * Returns number of CPUs on system that are useful for math.
  */
 int32_t cpu_get_num_math() {
-#if defined(__x86_64__) && defined(__linux__) && !defined(__ANDROID__)
-    int n_cpu = sysconf(_SC_NPROCESSORS_ONLN);
-    if (n_cpu < 1) {
-        return cpu_get_num_physical_cores();
-    }
-    if (is_hybrid_cpu()) {
-        cpu_set_t affinity;
-        if (!pthread_getaffinity_np(pthread_self(), sizeof(affinity), &affinity)) {
-            int result = cpu_count_math_cpus(n_cpu);
-            pthread_setaffinity_np(pthread_self(), sizeof(affinity), &affinity);
-            if (result > 0) {
-                return result;
-            }
-        }
-    }
-#endif
-    return cpu_get_num_physical_cores();
+// #if defined(__x86_64__) && defined(__linux__) && !defined(__ANDROID__)
+//     int n_cpu = sysconf(_SC_NPROCESSORS_ONLN);
+//     if (n_cpu < 1) {
+//         return cpu_get_num_physical_cores();
+//     }
+//     if (is_hybrid_cpu()) {
+//         cpu_set_t affinity;
+//         if (!pthread_getaffinity_np(pthread_self(), sizeof(affinity), &affinity)) {
+//             int result = cpu_count_math_cpus(n_cpu);
+//             pthread_setaffinity_np(pthread_self(), sizeof(affinity), &affinity);
+//             if (result > 0) {
+//                 return result;
+//             }
+//         }
+//     }
+// #endif
+//     return cpu_get_num_physical_cores();
+    return 1;
 }
 
 // Helper for setting process priority
@@ -414,7 +422,7 @@ std::string common_params_get_system_info(const common_params & params) {
     DWORD logicalProcessorCount = GetActiveProcessorCount(ALL_PROCESSOR_GROUPS);
     os << " / " << logicalProcessorCount << " | " << llama_print_system_info();
 #else
-    os << " / " << std::thread::hardware_concurrency() << " | " << llama_print_system_info();
+    // os << " / " << std::thread::hardware_concurrency() << " | " << llama_print_system_info();
 #endif
 
     return os.str();
@@ -716,7 +724,7 @@ bool fs_validate_filename(const std::string & filename) {
     }
 
     std::u32string filename_utf32;
-    try {
+    // try {
 #if defined(__clang__)
         // disable C++17 deprecation warning for std::codecvt_utf8
 #    pragma clang diagnostic push
@@ -736,9 +744,9 @@ bool fs_validate_filename(const std::string & filename) {
         if (filename_reencoded != filename) {
             return false;
         }
-    } catch (const std::exception &) {
-        return false;
-    }
+    // } catch (const std::exception &) {
+    //     return false;
+    // }
 
     // Check for forbidden codepoints:
     // - Control characters
@@ -863,23 +871,23 @@ std::string fs_get_cache_directory() {
         }
         return p;
     };
-    if (getenv("LLAMA_CACHE")) {
-        cache_directory = std::getenv("LLAMA_CACHE");
-    } else {
-#ifdef __linux__
-        if (std::getenv("XDG_CACHE_HOME")) {
-            cache_directory = std::getenv("XDG_CACHE_HOME");
-        } else {
-            cache_directory = std::getenv("HOME") + std::string("/.cache/");
-        }
-#elif defined(__APPLE__)
-        cache_directory = std::getenv("HOME") + std::string("/Library/Caches/");
-#elif defined(_WIN32)
-        cache_directory = std::getenv("LOCALAPPDATA");
-#endif // __linux__
+//     if (getenv("LLAMA_CACHE")) {
+//         cache_directory = std::getenv("LLAMA_CACHE");
+//     } else {
+// #ifdef __linux__
+//         if (std::getenv("XDG_CACHE_HOME")) {
+//             cache_directory = std::getenv("XDG_CACHE_HOME");
+//         } else {
+//             cache_directory = std::getenv("HOME") + std::string("/.cache/");
+//         }
+// #elif defined(__APPLE__)
+//         cache_directory = std::getenv("HOME") + std::string("/Library/Caches/");
+// #elif defined(_WIN32)
+//         cache_directory = std::getenv("LOCALAPPDATA");
+// #endif // __linux__
         cache_directory = ensure_trailing_slash(cache_directory);
         cache_directory += "llama.cpp";
-    }
+    // }
     return ensure_trailing_slash(cache_directory);
 }
 
@@ -888,7 +896,7 @@ std::string fs_get_cache_file(const std::string & filename) {
     std::string cache_directory = fs_get_cache_directory();
     const bool success = fs_create_directory_with_parents(cache_directory);
     if (!success) {
-        throw std::runtime_error("failed to create cache directory: " + cache_directory);
+        IC_API::trap("failed to create cache directory: " + cache_directory);
     }
     return cache_directory + filename;
 }
@@ -1158,424 +1166,424 @@ struct ggml_threadpool_params ggml_threadpool_params_from_cpu_params(const cpu_p
     return tpp;
 }
 
-#ifdef LLAMA_USE_CURL
+// #ifdef LLAMA_USE_CURL
 
-#define CURL_MAX_RETRY 3
-#define CURL_RETRY_DELAY_SECONDS 2
+// #define CURL_MAX_RETRY 3
+// #define CURL_RETRY_DELAY_SECONDS 2
 
-static bool curl_perform_with_retry(const std::string & url, CURL * curl, int max_attempts, int retry_delay_seconds) {
-    int remaining_attempts = max_attempts;
+// static bool curl_perform_with_retry(const std::string & url, CURL * curl, int max_attempts, int retry_delay_seconds) {
+//     int remaining_attempts = max_attempts;
 
-    while (remaining_attempts > 0) {
-        LOG_INF("%s: Trying to download from %s (attempt %d of %d)...\n", __func__ , url.c_str(), max_attempts - remaining_attempts + 1, max_attempts);
+//     while (remaining_attempts > 0) {
+//         LOG_INF("%s: Trying to download from %s (attempt %d of %d)...\n", __func__ , url.c_str(), max_attempts - remaining_attempts + 1, max_attempts);
 
-        CURLcode res = curl_easy_perform(curl);
-        if (res == CURLE_OK) {
-            return true;
-        }
+//         CURLcode res = curl_easy_perform(curl);
+//         if (res == CURLE_OK) {
+//             return true;
+//         }
 
-        int exponential_backoff_delay = std::pow(retry_delay_seconds, max_attempts - remaining_attempts) * 1000;
-        LOG_WRN("%s: curl_easy_perform() failed: %s, retrying after %d milliseconds...\n", __func__, curl_easy_strerror(res), exponential_backoff_delay);
+//         int exponential_backoff_delay = std::pow(retry_delay_seconds, max_attempts - remaining_attempts) * 1000;
+//         LOG_WRN("%s: curl_easy_perform() failed: %s, retrying after %d milliseconds...\n", __func__, curl_easy_strerror(res), exponential_backoff_delay);
 
-        remaining_attempts--;
-        std::this_thread::sleep_for(std::chrono::milliseconds(exponential_backoff_delay));
-    }
+//         remaining_attempts--;
+//         std::this_thread::sleep_for(std::chrono::milliseconds(exponential_backoff_delay));
+//     }
 
-    LOG_ERR("%s: curl_easy_perform() failed after %d attempts\n", __func__, max_attempts);
+//     LOG_ERR("%s: curl_easy_perform() failed after %d attempts\n", __func__, max_attempts);
 
-    return false;
-}
+//     return false;
+// }
 
-static bool common_download_file(const std::string & url, const std::string & path, const std::string & hf_token) {
-    // Initialize libcurl
-    curl_ptr       curl(curl_easy_init(), &curl_easy_cleanup);
-    curl_slist_ptr http_headers;
-    if (!curl) {
-        LOG_ERR("%s: error initializing libcurl\n", __func__);
-        return false;
-    }
+// static bool common_download_file(const std::string & url, const std::string & path, const std::string & hf_token) {
+//     // Initialize libcurl
+//     curl_ptr       curl(curl_easy_init(), &curl_easy_cleanup);
+//     curl_slist_ptr http_headers;
+//     if (!curl) {
+//         LOG_ERR("%s: error initializing libcurl\n", __func__);
+//         return false;
+//     }
 
-    bool force_download = false;
+//     bool force_download = false;
 
-    // Set the URL, allow to follow http redirection
-    curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl.get(), CURLOPT_FOLLOWLOCATION, 1L);
+//     // Set the URL, allow to follow http redirection
+//     curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
+//     curl_easy_setopt(curl.get(), CURLOPT_FOLLOWLOCATION, 1L);
 
-    // Check if hf-token or bearer-token was specified
-    if (!hf_token.empty()) {
-        std::string auth_header = "Authorization: Bearer " + hf_token;
-        http_headers.ptr = curl_slist_append(http_headers.ptr, auth_header.c_str());
-        curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, http_headers.ptr);
-    }
+//     // Check if hf-token or bearer-token was specified
+//     if (!hf_token.empty()) {
+//         std::string auth_header = "Authorization: Bearer " + hf_token;
+//         http_headers.ptr = curl_slist_append(http_headers.ptr, auth_header.c_str());
+//         curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, http_headers.ptr);
+//     }
 
-#if defined(_WIN32)
-    // CURLSSLOPT_NATIVE_CA tells libcurl to use standard certificate store of
-    //   operating system. Currently implemented under MS-Windows.
-    curl_easy_setopt(curl.get(), CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
-#endif
+// #if defined(_WIN32)
+//     // CURLSSLOPT_NATIVE_CA tells libcurl to use standard certificate store of
+//     //   operating system. Currently implemented under MS-Windows.
+//     curl_easy_setopt(curl.get(), CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
+// #endif
 
-    // Check if the file already exists locally
-    auto file_exists = std::filesystem::exists(path);
+//     // Check if the file already exists locally
+//     auto file_exists = std::filesystem::exists(path);
 
-    // If the file exists, check its JSON metadata companion file.
-    std::string metadata_path = path + ".json";
-    nlohmann::json metadata;
-    std::string etag;
-    std::string last_modified;
+//     // If the file exists, check its JSON metadata companion file.
+//     std::string metadata_path = path + ".json";
+//     nlohmann::json metadata;
+//     std::string etag;
+//     std::string last_modified;
 
-    if (file_exists) {
-        // Try and read the JSON metadata file (note: stream autoclosed upon exiting this block).
-        std::ifstream metadata_in(metadata_path);
-        if (metadata_in.good()) {
-            try {
-                metadata_in >> metadata;
-                LOG_INF("%s: previous metadata file found %s: %s\n", __func__, metadata_path.c_str(), metadata.dump().c_str());
-                if (metadata.contains("url") && metadata.at("url").is_string()) {
-                    auto previous_url = metadata.at("url").get<std::string>();
-                    if (previous_url != url) {
-                        LOG_ERR("%s: Model URL mismatch: %s != %s\n", __func__, url.c_str(), previous_url.c_str());
-                        return false;
-                    }
-                }
-                if (metadata.contains("etag") && metadata.at("etag").is_string()) {
-                    etag = metadata.at("etag");
-                }
-                if (metadata.contains("lastModified") && metadata.at("lastModified").is_string()) {
-                    last_modified = metadata.at("lastModified");
-                }
-            } catch (const nlohmann::json::exception & e) {
-            LOG_ERR("%s: error reading metadata file %s: %s\n", __func__, metadata_path.c_str(), e.what());
-                return false;
-            }
-        }
-    } else {
-        LOG_INF("%s: no previous model file found %s\n", __func__, path.c_str());
-    }
+//     if (file_exists) {
+//         // Try and read the JSON metadata file (note: stream autoclosed upon exiting this block).
+//         std::ifstream metadata_in(metadata_path);
+//         if (metadata_in.good()) {
+//             // try {
+//                 metadata_in >> metadata;
+//                 LOG_INF("%s: previous metadata file found %s: %s\n", __func__, metadata_path.c_str(), metadata.dump().c_str());
+//                 if (metadata.contains("url") && metadata.at("url").is_string()) {
+//                     auto previous_url = metadata.at("url").get<std::string>();
+//                     if (previous_url != url) {
+//                         LOG_ERR("%s: Model URL mismatch: %s != %s\n", __func__, url.c_str(), previous_url.c_str());
+//                         return false;
+//                     }
+//                 }
+//                 if (metadata.contains("etag") && metadata.at("etag").is_string()) {
+//                     etag = metadata.at("etag");
+//                 }
+//                 if (metadata.contains("lastModified") && metadata.at("lastModified").is_string()) {
+//                     last_modified = metadata.at("lastModified");
+//                 }
+//             // } catch (const nlohmann::json::exception & e) {
+//             // LOG_ERR("%s: error reading metadata file %s: %s\n", __func__, metadata_path.c_str(), e.what());
+//             //     return false;
+//             // }
+//         }
+//     } else {
+//         LOG_INF("%s: no previous model file found %s\n", __func__, path.c_str());
+//     }
 
-    // Send a HEAD request to retrieve the etag and last-modified headers
-    struct common_load_model_from_url_headers {
-        std::string etag;
-        std::string last_modified;
-    };
+//     // Send a HEAD request to retrieve the etag and last-modified headers
+//     struct common_load_model_from_url_headers {
+//         std::string etag;
+//         std::string last_modified;
+//     };
 
-    common_load_model_from_url_headers headers;
+//     common_load_model_from_url_headers headers;
 
-    {
-        typedef size_t(*CURLOPT_HEADERFUNCTION_PTR)(char *, size_t, size_t, void *);
-        auto header_callback = [](char * buffer, size_t /*size*/, size_t n_items, void * userdata) -> size_t {
-            common_load_model_from_url_headers * headers = (common_load_model_from_url_headers *) userdata;
+//     {
+//         typedef size_t(*CURLOPT_HEADERFUNCTION_PTR)(char *, size_t, size_t, void *);
+//         auto header_callback = [](char * buffer, size_t /*size*/, size_t n_items, void * userdata) -> size_t {
+//             common_load_model_from_url_headers * headers = (common_load_model_from_url_headers *) userdata;
 
-            static std::regex header_regex("([^:]+): (.*)\r\n");
-            static std::regex etag_regex("ETag", std::regex_constants::icase);
-            static std::regex last_modified_regex("Last-Modified", std::regex_constants::icase);
+//             static std::regex header_regex("([^:]+): (.*)\r\n");
+//             static std::regex etag_regex("ETag", std::regex_constants::icase);
+//             static std::regex last_modified_regex("Last-Modified", std::regex_constants::icase);
 
-            std::string header(buffer, n_items);
-            std::smatch match;
-            if (std::regex_match(header, match, header_regex)) {
-                const std::string & key = match[1];
-                const std::string & value = match[2];
-                if (std::regex_match(key, match, etag_regex)) {
-                    headers->etag = value;
-                } else if (std::regex_match(key, match, last_modified_regex)) {
-                    headers->last_modified = value;
-                }
-            }
-            return n_items;
-        };
+//             std::string header(buffer, n_items);
+//             std::smatch match;
+//             if (std::regex_match(header, match, header_regex)) {
+//                 const std::string & key = match[1];
+//                 const std::string & value = match[2];
+//                 if (std::regex_match(key, match, etag_regex)) {
+//                     headers->etag = value;
+//                 } else if (std::regex_match(key, match, last_modified_regex)) {
+//                     headers->last_modified = value;
+//                 }
+//             }
+//             return n_items;
+//         };
 
-        curl_easy_setopt(curl.get(), CURLOPT_NOBODY, 1L); // will trigger the HEAD verb
-        curl_easy_setopt(curl.get(), CURLOPT_NOPROGRESS, 1L); // hide head request progress
-        curl_easy_setopt(curl.get(), CURLOPT_HEADERFUNCTION, static_cast<CURLOPT_HEADERFUNCTION_PTR>(header_callback));
-        curl_easy_setopt(curl.get(), CURLOPT_HEADERDATA, &headers);
+//         curl_easy_setopt(curl.get(), CURLOPT_NOBODY, 1L); // will trigger the HEAD verb
+//         curl_easy_setopt(curl.get(), CURLOPT_NOPROGRESS, 1L); // hide head request progress
+//         curl_easy_setopt(curl.get(), CURLOPT_HEADERFUNCTION, static_cast<CURLOPT_HEADERFUNCTION_PTR>(header_callback));
+//         curl_easy_setopt(curl.get(), CURLOPT_HEADERDATA, &headers);
 
-        bool was_perform_successful = curl_perform_with_retry(url, curl.get(), CURL_MAX_RETRY, CURL_RETRY_DELAY_SECONDS);
-        if (!was_perform_successful) {
-            return false;
-        }
+//         bool was_perform_successful = curl_perform_with_retry(url, curl.get(), CURL_MAX_RETRY, CURL_RETRY_DELAY_SECONDS);
+//         if (!was_perform_successful) {
+//             return false;
+//         }
 
-        long http_code = 0;
-        curl_easy_getinfo(curl.get(), CURLINFO_RESPONSE_CODE, &http_code);
-        if (http_code != 200) {
-            // HEAD not supported, we don't know if the file has changed
-            // force trigger downloading
-            force_download = true;
-            LOG_ERR("%s: HEAD invalid http status code received: %ld\n", __func__, http_code);
-        }
-    }
+//         long http_code = 0;
+//         curl_easy_getinfo(curl.get(), CURLINFO_RESPONSE_CODE, &http_code);
+//         if (http_code != 200) {
+//             // HEAD not supported, we don't know if the file has changed
+//             // force trigger downloading
+//             force_download = true;
+//             LOG_ERR("%s: HEAD invalid http status code received: %ld\n", __func__, http_code);
+//         }
+//     }
 
-    bool should_download = !file_exists || force_download;
-    if (!should_download) {
-        if (!etag.empty() && etag != headers.etag) {
-            LOG_WRN("%s: ETag header is different (%s != %s): triggering a new download\n", __func__, etag.c_str(), headers.etag.c_str());
-            should_download = true;
-        } else if (!last_modified.empty() && last_modified != headers.last_modified) {
-            LOG_WRN("%s: Last-Modified header is different (%s != %s): triggering a new download\n", __func__, last_modified.c_str(), headers.last_modified.c_str());
-            should_download = true;
-        }
-    }
-    if (should_download) {
-        std::string path_temporary = path + ".downloadInProgress";
-        if (file_exists) {
-            LOG_WRN("%s: deleting previous downloaded file: %s\n", __func__, path.c_str());
-            if (remove(path.c_str()) != 0) {
-                LOG_ERR("%s: unable to delete file: %s\n", __func__, path.c_str());
-                return false;
-            }
-        }
+//     bool should_download = !file_exists || force_download;
+//     if (!should_download) {
+//         if (!etag.empty() && etag != headers.etag) {
+//             LOG_WRN("%s: ETag header is different (%s != %s): triggering a new download\n", __func__, etag.c_str(), headers.etag.c_str());
+//             should_download = true;
+//         } else if (!last_modified.empty() && last_modified != headers.last_modified) {
+//             LOG_WRN("%s: Last-Modified header is different (%s != %s): triggering a new download\n", __func__, last_modified.c_str(), headers.last_modified.c_str());
+//             should_download = true;
+//         }
+//     }
+//     if (should_download) {
+//         std::string path_temporary = path + ".downloadInProgress";
+//         if (file_exists) {
+//             LOG_WRN("%s: deleting previous downloaded file: %s\n", __func__, path.c_str());
+//             if (remove(path.c_str()) != 0) {
+//                 LOG_ERR("%s: unable to delete file: %s\n", __func__, path.c_str());
+//                 return false;
+//             }
+//         }
 
-        // Set the output file
+//         // Set the output file
 
-        struct FILE_deleter {
-            void operator()(FILE * f) const {
-                fclose(f);
-            }
-        };
+//         struct FILE_deleter {
+//             void operator()(FILE * f) const {
+//                 fclose(f);
+//             }
+//         };
 
-        std::unique_ptr<FILE, FILE_deleter> outfile(fopen(path_temporary.c_str(), "wb"));
-        if (!outfile) {
-            LOG_ERR("%s: error opening local file for writing: %s\n", __func__, path.c_str());
-            return false;
-        }
+//         std::unique_ptr<FILE, FILE_deleter> outfile(fopen(path_temporary.c_str(), "wb"));
+//         if (!outfile) {
+//             LOG_ERR("%s: error opening local file for writing: %s\n", __func__, path.c_str());
+//             return false;
+//         }
 
-        typedef size_t(*CURLOPT_WRITEFUNCTION_PTR)(void * data, size_t size, size_t nmemb, void * fd);
-        auto write_callback = [](void * data, size_t size, size_t nmemb, void * fd) -> size_t {
-            return fwrite(data, size, nmemb, (FILE *)fd);
-        };
-        curl_easy_setopt(curl.get(), CURLOPT_NOBODY, 0L);
-        curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, static_cast<CURLOPT_WRITEFUNCTION_PTR>(write_callback));
-        curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, outfile.get());
+//         typedef size_t(*CURLOPT_WRITEFUNCTION_PTR)(void * data, size_t size, size_t nmemb, void * fd);
+//         auto write_callback = [](void * data, size_t size, size_t nmemb, void * fd) -> size_t {
+//             return fwrite(data, size, nmemb, (FILE *)fd);
+//         };
+//         curl_easy_setopt(curl.get(), CURLOPT_NOBODY, 0L);
+//         curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, static_cast<CURLOPT_WRITEFUNCTION_PTR>(write_callback));
+//         curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, outfile.get());
 
-        //  display download progress
-        curl_easy_setopt(curl.get(), CURLOPT_NOPROGRESS, 0L);
+//         //  display download progress
+//         curl_easy_setopt(curl.get(), CURLOPT_NOPROGRESS, 0L);
 
-        // helper function to hide password in URL
-        auto llama_download_hide_password_in_url = [](const std::string & url) -> std::string {
-            std::size_t protocol_pos = url.find("://");
-            if (protocol_pos == std::string::npos) {
-                return url;  // Malformed URL
-            }
+//         // helper function to hide password in URL
+//         auto llama_download_hide_password_in_url = [](const std::string & url) -> std::string {
+//             std::size_t protocol_pos = url.find("://");
+//             if (protocol_pos == std::string::npos) {
+//                 return url;  // Malformed URL
+//             }
 
-            std::size_t at_pos = url.find('@', protocol_pos + 3);
-            if (at_pos == std::string::npos) {
-                return url;  // No password in URL
-            }
+//             std::size_t at_pos = url.find('@', protocol_pos + 3);
+//             if (at_pos == std::string::npos) {
+//                 return url;  // No password in URL
+//             }
 
-            return url.substr(0, protocol_pos + 3) + "********" + url.substr(at_pos);
-        };
+//             return url.substr(0, protocol_pos + 3) + "********" + url.substr(at_pos);
+//         };
 
-        // start the download
-        LOG_INF("%s: trying to download model from %s to %s (server_etag:%s, server_last_modified:%s)...\n", __func__,
-            llama_download_hide_password_in_url(url).c_str(), path.c_str(), headers.etag.c_str(), headers.last_modified.c_str());
-        bool was_perform_successful = curl_perform_with_retry(url, curl.get(), CURL_MAX_RETRY, CURL_RETRY_DELAY_SECONDS);
-        if (!was_perform_successful) {
-            return false;
-        }
+//         // start the download
+//         LOG_INF("%s: trying to download model from %s to %s (server_etag:%s, server_last_modified:%s)...\n", __func__,
+//             llama_download_hide_password_in_url(url).c_str(), path.c_str(), headers.etag.c_str(), headers.last_modified.c_str());
+//         bool was_perform_successful = curl_perform_with_retry(url, curl.get(), CURL_MAX_RETRY, CURL_RETRY_DELAY_SECONDS);
+//         if (!was_perform_successful) {
+//             return false;
+//         }
 
-        long http_code = 0;
-        curl_easy_getinfo (curl.get(), CURLINFO_RESPONSE_CODE, &http_code);
-        if (http_code < 200 || http_code >= 400) {
-            LOG_ERR("%s: invalid http status code received: %ld\n", __func__, http_code);
-            return false;
-        }
+//         long http_code = 0;
+//         curl_easy_getinfo (curl.get(), CURLINFO_RESPONSE_CODE, &http_code);
+//         if (http_code < 200 || http_code >= 400) {
+//             LOG_ERR("%s: invalid http status code received: %ld\n", __func__, http_code);
+//             return false;
+//         }
 
-        // Causes file to be closed explicitly here before we rename it.
-        outfile.reset();
+//         // Causes file to be closed explicitly here before we rename it.
+//         outfile.reset();
 
-        // Write the updated JSON metadata file.
-        metadata.update({
-            {"url", url},
-            {"etag", headers.etag},
-            {"lastModified", headers.last_modified}
-        });
-        std::ofstream(metadata_path) << metadata.dump(4);
-        LOG_INF("%s: file metadata saved: %s\n", __func__, metadata_path.c_str());
+//         // Write the updated JSON metadata file.
+//         metadata.update({
+//             {"url", url},
+//             {"etag", headers.etag},
+//             {"lastModified", headers.last_modified}
+//         });
+//         std::ofstream(metadata_path) << metadata.dump(4);
+//         LOG_INF("%s: file metadata saved: %s\n", __func__, metadata_path.c_str());
 
-        if (rename(path_temporary.c_str(), path.c_str()) != 0) {
-            LOG_ERR("%s: unable to rename file: %s to %s\n", __func__, path_temporary.c_str(), path.c_str());
-            return false;
-        }
-    }
+//         if (rename(path_temporary.c_str(), path.c_str()) != 0) {
+//             LOG_ERR("%s: unable to rename file: %s to %s\n", __func__, path_temporary.c_str(), path.c_str());
+//             return false;
+//         }
+//     }
 
-    return true;
-}
+//     return true;
+// }
 
-struct llama_model * common_load_model_from_url(
-        const std::string & model_url,
-        const std::string & local_path,
-        const std::string & hf_token,
-        const struct llama_model_params & params) {
-    // Basic validation of the model_url
-    if (model_url.empty()) {
-        LOG_ERR("%s: invalid model_url\n", __func__);
-        return NULL;
-    }
+// struct llama_model * common_load_model_from_url(
+//         const std::string & model_url,
+//         const std::string & local_path,
+//         const std::string & hf_token,
+//         const struct llama_model_params & params) {
+//     // Basic validation of the model_url
+//     if (model_url.empty()) {
+//         LOG_ERR("%s: invalid model_url\n", __func__);
+//         return NULL;
+//     }
 
-    if (!common_download_file(model_url, local_path, hf_token)) {
-        return NULL;
-    }
+//     if (!common_download_file(model_url, local_path, hf_token)) {
+//         return NULL;
+//     }
 
-    // check for additional GGUFs split to download
-    int n_split = 0;
-    {
-        struct gguf_init_params gguf_params = {
-            /*.no_alloc = */ true,
-            /*.ctx      = */ NULL,
-        };
-        auto * ctx_gguf = gguf_init_from_file(local_path.c_str(), gguf_params);
-        if (!ctx_gguf) {
-            LOG_ERR("\n%s:  failed to load input GGUF from %s\n", __func__, local_path.c_str());
-            return NULL;
-        }
+//     // check for additional GGUFs split to download
+//     int n_split = 0;
+//     {
+//         struct gguf_init_params gguf_params = {
+//             /*.no_alloc = */ true,
+//             /*.ctx      = */ NULL,
+//         };
+//         auto * ctx_gguf = gguf_init_from_file(local_path.c_str(), gguf_params);
+//         if (!ctx_gguf) {
+//             LOG_ERR("\n%s:  failed to load input GGUF from %s\n", __func__, local_path.c_str());
+//             return NULL;
+//         }
 
-        auto key_n_split = gguf_find_key(ctx_gguf, LLM_KV_SPLIT_COUNT);
-        if (key_n_split >= 0) {
-            n_split = gguf_get_val_u16(ctx_gguf, key_n_split);
-        }
+//         auto key_n_split = gguf_find_key(ctx_gguf, LLM_KV_SPLIT_COUNT);
+//         if (key_n_split >= 0) {
+//             n_split = gguf_get_val_u16(ctx_gguf, key_n_split);
+//         }
 
-        gguf_free(ctx_gguf);
-    }
+//         gguf_free(ctx_gguf);
+//     }
 
-    if (n_split > 1) {
-        char split_prefix[PATH_MAX] = {0};
-        char split_url_prefix[LLAMA_CURL_MAX_URL_LENGTH] = {0};
+//     if (n_split > 1) {
+//         char split_prefix[PATH_MAX] = {0};
+//         char split_url_prefix[LLAMA_CURL_MAX_URL_LENGTH] = {0};
 
-        // Verify the first split file format
-        // and extract split URL and PATH prefixes
-        {
-            if (!llama_split_prefix(split_prefix, sizeof(split_prefix), local_path.c_str(), 0, n_split)) {
-                LOG_ERR("\n%s: unexpected model file name: %s n_split=%d\n", __func__, local_path.c_str(), n_split);
-                return NULL;
-            }
+//         // Verify the first split file format
+//         // and extract split URL and PATH prefixes
+//         {
+//             if (!llama_split_prefix(split_prefix, sizeof(split_prefix), local_path.c_str(), 0, n_split)) {
+//                 LOG_ERR("\n%s: unexpected model file name: %s n_split=%d\n", __func__, local_path.c_str(), n_split);
+//                 return NULL;
+//             }
 
-            if (!llama_split_prefix(split_url_prefix, sizeof(split_url_prefix), model_url.c_str(), 0, n_split)) {
-                LOG_ERR("\n%s: unexpected model url: %s n_split=%d\n", __func__, model_url.c_str(), n_split);
-                return NULL;
-            }
-        }
+//             if (!llama_split_prefix(split_url_prefix, sizeof(split_url_prefix), model_url.c_str(), 0, n_split)) {
+//                 LOG_ERR("\n%s: unexpected model url: %s n_split=%d\n", __func__, model_url.c_str(), n_split);
+//                 return NULL;
+//             }
+//         }
 
-        // Prepare download in parallel
-        std::vector<std::future<bool>> futures_download;
-        for (int idx = 1; idx < n_split; idx++) {
-            futures_download.push_back(std::async(std::launch::async, [&split_prefix, &split_url_prefix, &n_split, hf_token](int download_idx) -> bool {
-                char split_path[PATH_MAX] = {0};
-                llama_split_path(split_path, sizeof(split_path), split_prefix, download_idx, n_split);
+//         // Prepare download in parallel
+//         std::vector<std::future<bool>> futures_download;
+//         for (int idx = 1; idx < n_split; idx++) {
+//             futures_download.push_back(std::async(std::launch::async, [&split_prefix, &split_url_prefix, &n_split, hf_token](int download_idx) -> bool {
+//                 char split_path[PATH_MAX] = {0};
+//                 llama_split_path(split_path, sizeof(split_path), split_prefix, download_idx, n_split);
 
-                char split_url[LLAMA_CURL_MAX_URL_LENGTH] = {0};
-                llama_split_path(split_url, sizeof(split_url), split_url_prefix, download_idx, n_split);
+//                 char split_url[LLAMA_CURL_MAX_URL_LENGTH] = {0};
+//                 llama_split_path(split_url, sizeof(split_url), split_url_prefix, download_idx, n_split);
 
-                return common_download_file(split_url, split_path, hf_token);
-            }, idx));
-        }
+//                 return common_download_file(split_url, split_path, hf_token);
+//             }, idx));
+//         }
 
-        // Wait for all downloads to complete
-        for (auto & f : futures_download) {
-            if (!f.get()) {
-                return NULL;
-            }
-        }
-    }
+//         // Wait for all downloads to complete
+//         for (auto & f : futures_download) {
+//             if (!f.get()) {
+//                 return NULL;
+//             }
+//         }
+//     }
 
-    return llama_model_load_from_file(local_path.c_str(), params);
-}
+//     return llama_model_load_from_file(local_path.c_str(), params);
+// }
 
-struct llama_model * common_load_model_from_hf(
-        const std::string & repo,
-        const std::string & remote_path,
-        const std::string & local_path,
-        const std::string & hf_token,
-        const struct llama_model_params & params) {
-    // construct hugging face model url:
-    //
-    //  --repo ggml-org/models --file tinyllama-1.1b/ggml-model-f16.gguf
-    //    https://huggingface.co/ggml-org/models/resolve/main/tinyllama-1.1b/ggml-model-f16.gguf
-    //
-    //  --repo TheBloke/Mixtral-8x7B-v0.1-GGUF --file mixtral-8x7b-v0.1.Q4_K_M.gguf
-    //    https://huggingface.co/TheBloke/Mixtral-8x7B-v0.1-GGUF/resolve/main/mixtral-8x7b-v0.1.Q4_K_M.gguf
-    //
+// struct llama_model * common_load_model_from_hf(
+//         const std::string & repo,
+//         const std::string & remote_path,
+//         const std::string & local_path,
+//         const std::string & hf_token,
+//         const struct llama_model_params & params) {
+//     // construct hugging face model url:
+//     //
+//     //  --repo ggml-org/models --file tinyllama-1.1b/ggml-model-f16.gguf
+//     //    https://huggingface.co/ggml-org/models/resolve/main/tinyllama-1.1b/ggml-model-f16.gguf
+//     //
+//     //  --repo TheBloke/Mixtral-8x7B-v0.1-GGUF --file mixtral-8x7b-v0.1.Q4_K_M.gguf
+//     //    https://huggingface.co/TheBloke/Mixtral-8x7B-v0.1-GGUF/resolve/main/mixtral-8x7b-v0.1.Q4_K_M.gguf
+//     //
 
-    std::string model_url = "https://huggingface.co/";
-    model_url += repo;
-    model_url += "/resolve/main/";
-    model_url += remote_path;
+//     std::string model_url = "https://huggingface.co/";
+//     model_url += repo;
+//     model_url += "/resolve/main/";
+//     model_url += remote_path;
 
-    return common_load_model_from_url(model_url, local_path, hf_token, params);
-}
+//     return common_load_model_from_url(model_url, local_path, hf_token, params);
+// }
 
-/**
- * Allow getting the HF file from the HF repo with tag (like ollama), for example:
- * - bartowski/Llama-3.2-3B-Instruct-GGUF:q4
- * - bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M
- * - bartowski/Llama-3.2-3B-Instruct-GGUF:q5_k_s
- * Tag is optional, default to "latest" (meaning it checks for Q4_K_M first, then Q4, then if not found, return the first GGUF file in repo)
- *
- * Return pair of <repo, file> (with "repo" already having tag removed)
- *
- * Note: we use the Ollama-compatible HF API, but not using the blobId. Instead, we use the special "ggufFile" field which returns the value for "hf_file". This is done to be backward-compatible with existing cache files.
- */
-std::pair<std::string, std::string> common_get_hf_file(const std::string & hf_repo_with_tag, const std::string & hf_token) {
-    auto parts = string_split<std::string>(hf_repo_with_tag, ':');
-    std::string tag = parts.size() > 1 ? parts.back() : "latest";
-    std::string hf_repo = parts[0];
-    if (string_split<std::string>(hf_repo, '/').size() != 2) {
-        throw std::invalid_argument("error: invalid HF repo format, expected <user>/<model>[:quant]\n");
-    }
+// /**
+//  * Allow getting the HF file from the HF repo with tag (like ollama), for example:
+//  * - bartowski/Llama-3.2-3B-Instruct-GGUF:q4
+//  * - bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M
+//  * - bartowski/Llama-3.2-3B-Instruct-GGUF:q5_k_s
+//  * Tag is optional, default to "latest" (meaning it checks for Q4_K_M first, then Q4, then if not found, return the first GGUF file in repo)
+//  *
+//  * Return pair of <repo, file> (with "repo" already having tag removed)
+//  *
+//  * Note: we use the Ollama-compatible HF API, but not using the blobId. Instead, we use the special "ggufFile" field which returns the value for "hf_file". This is done to be backward-compatible with existing cache files.
+//  */
+// std::pair<std::string, std::string> common_get_hf_file(const std::string & hf_repo_with_tag, const std::string & hf_token) {
+//     auto parts = string_split<std::string>(hf_repo_with_tag, ':');
+//     std::string tag = parts.size() > 1 ? parts.back() : "latest";
+//     std::string hf_repo = parts[0];
+//     if (string_split<std::string>(hf_repo, '/').size() != 2) {
+//         IC_API::trap("error: invalid HF repo format, expected <user>/<model>[:quant]\n");
+//     }
 
-    // fetch model info from Hugging Face Hub API
-    json model_info;
-    curl_ptr       curl(curl_easy_init(), &curl_easy_cleanup);
-    curl_slist_ptr http_headers;
-    std::string res_str;
-    std::string url = "https://huggingface.co/v2/" + hf_repo + "/manifests/" + tag;
-    curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl.get(), CURLOPT_NOPROGRESS, 1L);
-    typedef size_t(*CURLOPT_WRITEFUNCTION_PTR)(void * ptr, size_t size, size_t nmemb, void * data);
-    auto write_callback = [](void * ptr, size_t size, size_t nmemb, void * data) -> size_t {
-        static_cast<std::string *>(data)->append((char * ) ptr, size * nmemb);
-        return size * nmemb;
-    };
-    curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, static_cast<CURLOPT_WRITEFUNCTION_PTR>(write_callback));
-    curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &res_str);
-#if defined(_WIN32)
-    curl_easy_setopt(curl.get(), CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
-#endif
-    if (!hf_token.empty()) {
-        std::string auth_header = "Authorization: Bearer " + hf_token;
-        http_headers.ptr = curl_slist_append(http_headers.ptr, auth_header.c_str());
-    }
-    // Important: the User-Agent must be "llama-cpp" to get the "ggufFile" field in the response
-    http_headers.ptr = curl_slist_append(http_headers.ptr, "User-Agent: llama-cpp");
-    http_headers.ptr = curl_slist_append(http_headers.ptr, "Accept: application/json");
-    curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, http_headers.ptr);
+//     // fetch model info from Hugging Face Hub API
+//     json model_info;
+//     curl_ptr       curl(curl_easy_init(), &curl_easy_cleanup);
+//     curl_slist_ptr http_headers;
+//     std::string res_str;
+//     std::string url = "https://huggingface.co/v2/" + hf_repo + "/manifests/" + tag;
+//     curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
+//     curl_easy_setopt(curl.get(), CURLOPT_NOPROGRESS, 1L);
+//     typedef size_t(*CURLOPT_WRITEFUNCTION_PTR)(void * ptr, size_t size, size_t nmemb, void * data);
+//     auto write_callback = [](void * ptr, size_t size, size_t nmemb, void * data) -> size_t {
+//         static_cast<std::string *>(data)->append((char * ) ptr, size * nmemb);
+//         return size * nmemb;
+//     };
+//     curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, static_cast<CURLOPT_WRITEFUNCTION_PTR>(write_callback));
+//     curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &res_str);
+// #if defined(_WIN32)
+//     curl_easy_setopt(curl.get(), CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
+// #endif
+//     if (!hf_token.empty()) {
+//         std::string auth_header = "Authorization: Bearer " + hf_token;
+//         http_headers.ptr = curl_slist_append(http_headers.ptr, auth_header.c_str());
+//     }
+//     // Important: the User-Agent must be "llama-cpp" to get the "ggufFile" field in the response
+//     http_headers.ptr = curl_slist_append(http_headers.ptr, "User-Agent: llama-cpp");
+//     http_headers.ptr = curl_slist_append(http_headers.ptr, "Accept: application/json");
+//     curl_easy_setopt(curl.get(), CURLOPT_HTTPHEADER, http_headers.ptr);
 
-    CURLcode res = curl_easy_perform(curl.get());
+//     CURLcode res = curl_easy_perform(curl.get());
 
-    if (res != CURLE_OK) {
-        throw std::runtime_error("error: cannot make GET request to HF API");
-    }
+//     if (res != CURLE_OK) {
+//         IC_API::trap("error: cannot make GET request to HF API");
+//     }
 
-    long res_code;
-    curl_easy_getinfo(curl.get(), CURLINFO_RESPONSE_CODE, &res_code);
-    if (res_code == 200) {
-        model_info = json::parse(res_str);
-    } else if (res_code == 401) {
-        throw std::runtime_error("error: model is private or does not exist; if you are accessing a gated model, please provide a valid HF token");
-    } else {
-        throw std::runtime_error(string_format("error from HF API, response code: %ld, data: %s", res_code, res_str.c_str()));
-    }
+//     long res_code;
+//     curl_easy_getinfo(curl.get(), CURLINFO_RESPONSE_CODE, &res_code);
+//     if (res_code == 200) {
+//         model_info = json::parse(res_str);
+//     } else if (res_code == 401) {
+//         IC_API::trap("error: model is private or does not exist; if you are accessing a gated model, please provide a valid HF token");
+//     } else {
+//         IC_API::trap(string_format("error from HF API, response code: %ld, data: %s", res_code, res_str.c_str()));
+//     }
 
-    // check response
-    if (!model_info.contains("ggufFile")) {
-        throw std::runtime_error("error: model does not have ggufFile");
-    }
-    json & gguf_file = model_info.at("ggufFile");
-    if (!gguf_file.contains("rfilename")) {
-        throw std::runtime_error("error: ggufFile does not have rfilename");
-    }
+//     // check response
+//     if (!model_info.contains("ggufFile")) {
+//         IC_API::trap("error: model does not have ggufFile");
+//     }
+//     json & gguf_file = model_info.at("ggufFile");
+//     if (!gguf_file.contains("rfilename")) {
+//         IC_API::trap("error: ggufFile does not have rfilename");
+//     }
 
-    return std::make_pair(hf_repo, gguf_file.at("rfilename"));
-}
+//     return std::make_pair(hf_repo, gguf_file.at("rfilename"));
+// }
 
-#else
+// #else
 
 struct llama_model * common_load_model_from_url(
         const std::string & /*model_url*/,
@@ -1601,7 +1609,7 @@ std::pair<std::string, std::string> common_get_hf_file(const std::string &, cons
     return std::make_pair("", "");
 }
 
-#endif // LLAMA_USE_CURL
+// #endif // LLAMA_USE_CURL
 
 //
 // Batch utils
@@ -1773,17 +1781,17 @@ std::string common_detokenize(const struct llama_vocab * vocab, const std::vecto
 
 bool common_chat_verify_template(const std::string & tmpl, bool use_jinja) {
     if (use_jinja) {
-        try {
+        // try {
             auto chat_template = minja::chat_template(tmpl, "<s>", "</s>");
             chat_template.apply({{
                 {"role", "user"},
                 {"content", "test"},
             }}, json(), true);
             return true;
-        } catch (const std::exception & e) {
-            LOG_ERR("%s: failed to apply template: %s\n", __func__, e.what());
-            return false;
-        }
+        // } catch (const std::exception & e) {
+        //     LOG_ERR("%s: failed to apply template: %s\n", __func__, e.what());
+        //     return false;
+        // }
     }
     llama_chat_message chat[] = {{"user", "test"}};
     const int res = llama_chat_apply_template(tmpl.c_str(), chat, 1, true, nullptr, 0);
@@ -1819,7 +1827,7 @@ std::string common_chat_apply_template(
     if (res < 0) {
         // if the custom "tmpl" is not supported, we throw an error
         // this is a bit redundant (for good), since we're not sure if user validated the custom template with llama_chat_verify_template()
-        throw std::runtime_error("this custom template is not supported");
+        IC_API::trap("this custom template is not supported");
     }
 
     // if it turns out that our buffer is too small, we resize it
@@ -2085,11 +2093,11 @@ static common_control_vector_data common_control_vector_load_one(const common_co
         // split on '.'
         size_t dotpos = name.find('.');
         if (dotpos != std::string::npos && name.substr(0, dotpos) == "direction") {
-            try {
+            // try {
                 layer_idx = std::stoi(name.substr(dotpos + 1));
-            } catch (...) {
-                layer_idx = -1;
-            }
+            // } catch (...) {
+            //     layer_idx = -1;
+            // }
         }
         if (layer_idx < 0) {
             LOG_ERR("%s: invalid/unparsable direction tensor layer index in %s\n", __func__, load_info.fname.c_str());
