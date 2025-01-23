@@ -39,14 +39,14 @@ class chat_template {
         bool add_generation_prompt,
         const nlohmann::ordered_json & extra_context = nlohmann::ordered_json()) const
     {
-        try {
+        // try {
             auto prompt = apply(messages, tools, add_generation_prompt, extra_context, /* adjust_inputs= */ false);
             // fprintf(stderr, "Prompt: %s\n", prompt.c_str());
             return prompt;
-        } catch (const std::exception & e) {
-            // fprintf(stderr, "Error: %s\n", e.what());
-            return "";
-        }
+        // } catch (const std::exception & e) {
+        //     // fprintf(stderr, "Error: %s\n", e.what());
+        //     return "";
+        // }
     }
 
   public:
@@ -163,7 +163,7 @@ class chat_template {
             for (const auto & message_ : messages) {
                 auto message = message_;
                 if (!message.contains("role") || !message.contains("content")) {
-                    throw std::runtime_error("message must have 'role' and 'content' fields: " + message.dump());
+                    IC_API::trap("message must have 'role' and 'content' fields: " + message.dump());
                 }
                 std::string role = message.at("role");
 
