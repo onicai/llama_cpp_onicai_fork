@@ -3,7 +3,7 @@
 
 #include "ggml-backend.h"
 #include "ggml-impl.h"
-#include "ggml-threading.h"
+// #include "ggml-threading.h"
 #include "ggml.h"
 
 // FIXME: required here for quantization functions
@@ -31,7 +31,7 @@
 #include <float.h>
 #include <limits.h>
 #include <stdarg.h>
-#include <signal.h>
+// #include <signal.h>
 #if defined(__gnu_linux__)
 #include <syscall.h>
 #endif
