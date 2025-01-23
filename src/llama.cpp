@@ -1,3 +1,6 @@
+#include <iostream> // ICPP-PATCH: for debug print statements
+
+#include "ic_api.h"
 #include "llama-impl.h"
 
 #include "llama-chat.h"
@@ -39,28 +42,28 @@ static int llama_model_load(const std::string & fname, std::vector<std::string> 
 
     model.t_start_us = tm.t_start_us;
 
-    try {
+    // try {
         llama_model_loader ml(fname, splits, params.use_mmap, params.check_tensors, params.kv_overrides);
 
         ml.print_info();
 
         model.hparams.vocab_only = params.vocab_only;
 
-        try {
+        // try {
             model.load_arch(ml);
-        } catch(const std::exception & e) {
-            throw std::runtime_error("error loading model architecture: " + std::string(e.what()));
-        }
-        try {
+        // } catch(const std::exception & e) {
+            IC_API::trap("error loading model architecture: ");
+        // }
+        // try {
             model.load_hparams(ml);
-        } catch(const std::exception & e) {
-            throw std::runtime_error("error loading model hyperparameters: " + std::string(e.what()));
-        }
-        try {
+        // } catch(const std::exception & e) {
+            IC_API::trap("error loading model hyperparameters: ");
+        // }
+        // try {
             model.load_vocab(ml);
-        } catch(const std::exception & e) {
-            throw std::runtime_error("error loading model vocabulary: " + std::string(e.what()));
-        }
+        // } catch(const std::exception & e) {
+            IC_API::trap("error loading model vocabulary: ");
+        // }
 
         model.load_stats(ml);
         model.print_info();
@@ -73,10 +76,10 @@ static int llama_model_load(const std::string & fname, std::vector<std::string> 
         if (!model.load_tensors(ml)) {
             return -2;
         }
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: error loading model: %s\n", __func__, err.what());
-        return -1;
-    }
+    // } catch (const std::exception & err) {
+    //     LLAMA_LOG_ERROR("%s: error loading model: %s\n", __func__, err.what());
+    //     return -1;
+    // }
 
     return 0;
 }
