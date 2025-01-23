@@ -1,4 +1,4 @@
-#include "ic_api.h
+#include "ic_api.h"
 #include "llama-sampling.h"
 
 #include "llama-impl.h"

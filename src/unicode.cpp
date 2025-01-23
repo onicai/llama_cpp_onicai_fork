@@ -44,10 +44,12 @@ uint32_t unicode_cpt_from_utf8(const std::string & utf8, size_t & offset) {
     }
     if (!(utf8[offset + 0] & 0x40)) {
         IC_API::trap("invalid character");
+        return 0; // unreachable
     }
     if (!(utf8[offset + 0] & 0x20)) {
         if (offset + 1 >= utf8.size() || ! ((utf8[offset + 1] & 0xc0) == 0x80)) {
             IC_API::trap("invalid character");
+            return 0; // unreachable
         }
         auto result = ((utf8[offset + 0] & 0x1f) << 6) | (utf8[offset + 1] & 0x3f);
         offset += 2;
@@ -56,6 +58,7 @@ uint32_t unicode_cpt_from_utf8(const std::string & utf8, size_t & offset) {
     if (!(utf8[offset + 0] & 0x10)) {
         if (offset + 2 >= utf8.size() || ! ((utf8[offset + 1] & 0xc0) == 0x80) || ! ((utf8[offset + 2] & 0xc0) == 0x80)) {
             IC_API::trap("invalid character");
+            return 0; // unreachable
         }
         auto result = ((utf8[offset + 0] & 0x0f) << 12) | ((utf8[offset + 1] & 0x3f) << 6) | (utf8[offset + 2] & 0x3f);
         offset += 3;
@@ -64,12 +67,14 @@ uint32_t unicode_cpt_from_utf8(const std::string & utf8, size_t & offset) {
     if (!(utf8[offset + 0] & 0x08)) {
         if (offset + 3 >= utf8.size() || ! ((utf8[offset + 1] & 0xc0) == 0x80) || ! ((utf8[offset + 2] & 0xc0) == 0x80) || !((utf8[offset + 3] & 0xc0) == 0x80)) {
             IC_API::trap("invalid character");
+            return 0; // unreachable
         }
         auto result = ((utf8[offset + 0] & 0x07) << 18) | ((utf8[offset + 1] & 0x3f) << 12) | ((utf8[offset + 2] & 0x3f) << 6) | (utf8[offset + 3] & 0x3f);
         offset += 4;
         return result;
     }
     IC_API::trap("failed to convert utf8 to codepoint");
+    return 0; // unreachable
 }
 
 //static std::vector<uint16_t> unicode_cpt_to_utf16(uint32_t cpt) {
@@ -600,6 +605,7 @@ std::string unicode_cpt_to_utf8(uint32_t cpt) {
     }
 
     IC_API::trap("invalid codepoint");
+    return ""; // unreachable
 }
 
 std::vector<uint32_t> unicode_cpts_normalize_nfd(const std::vector<uint32_t> & cpts) {

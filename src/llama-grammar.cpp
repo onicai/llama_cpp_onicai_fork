@@ -174,11 +174,13 @@ static std::pair<uint32_t, const char *> parse_char(const char * src) {
                       return std::make_pair(src[1], src + 2);
             default:
                       IC_API::trap(std::string("unknown escape at ") + src);
+                      return std::make_pair(0, src); // unreachable
         }
     } else if (*src) {
         return decode_utf8(src);
     }
     IC_API::trap("unexpected end of input");
+    return std::make_pair(0, src); // unreachable
 }
 
 static void print_grammar_char(FILE * file, uint32_t c) {
