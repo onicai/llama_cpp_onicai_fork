@@ -3,9 +3,9 @@
 #include <condition_variable>
 #include <cstdarg>
 #include <cstdio>
-#include <mutex>
+// #include <mutex>
 #include <sstream>
-#include <thread>
+// #include <thread>
 #include <vector>
 
 int common_log_verbosity_thold = LOG_DEFAULT_LLAMA;
@@ -145,9 +145,9 @@ struct common_log {
     }
 
 private:
-    std::mutex mtx;
-    std::thread thrd;
-    std::condition_variable cv;
+    //icpp-no-thread std::mutex mtx;
+    //icpp-no-thread std::thread thrd;
+    //icpp-no-thread std::condition_variable cv;
 
     FILE * file;
 
@@ -167,7 +167,7 @@ private:
 
 public:
     void add(enum ggml_log_level level, const char * fmt, va_list args) {
-        std::lock_guard<std::mutex> lock(mtx);
+        //icpp-no-thread std::lock_guard<std::mutex> lock(mtx);
 
         if (!running) {
             // discard messages while the worker thread is paused
@@ -240,11 +240,11 @@ public:
             entries = std::move(new_entries);
         }
 
-        cv.notify_one();
+        //icpp-no-thread cv.notify_one();
     }
 
     void resume() {
-        std::lock_guard<std::mutex> lock(mtx);
+        //icpp-no-thread std::lock_guard<std::mutex> lock(mtx);
 
         if (running) {
             return;
@@ -252,11 +252,11 @@ public:
 
         running = true;
 
-        thrd = std::thread([this]() {
+        //icpp-no-thread thrd = std::thread([this]() {
             while (true) {
                 {
-                    std::unique_lock<std::mutex> lock(mtx);
-                    cv.wait(lock, [this]() { return head != tail; });
+                    //icpp-no-thread std::unique_lock<std::mutex> lock(mtx);
+                    //icpp-no-thread cv.wait(lock, [this]() { return head != tail; });
 
                     cur = entries[head];
 
@@ -273,12 +273,12 @@ public:
                     cur.print(file);
                 }
             }
-        });
+        //icpp-no-thread });
     }
 
     void pause() {
         {
-            std::lock_guard<std::mutex> lock(mtx);
+            //icpp-no-thread std::lock_guard<std::mutex> lock(mtx);
 
             if (!running) {
                 return;
@@ -294,10 +294,10 @@ public:
                 tail = (tail + 1) % entries.size();
             }
 
-            cv.notify_one();
+            //icpp-no-thread cv.notify_one();
         }
 
-        thrd.join();
+        //icpp-no-thread thrd.join();
     }
 
     void set_file(const char * path) {
@@ -339,13 +339,13 @@ public:
     }
 
     void set_prefix(bool prefix) {
-        std::lock_guard<std::mutex> lock(mtx);
+        //icpp-no-thread std::lock_guard<std::mutex> lock(mtx);
 
         this->prefix = prefix;
     }
 
     void set_timestamps(bool timestamps) {
-        std::lock_guard<std::mutex> lock(mtx);
+        //icpp-no-thread std::lock_guard<std::mutex> lock(mtx);
 
         this->timestamps = timestamps;
     }

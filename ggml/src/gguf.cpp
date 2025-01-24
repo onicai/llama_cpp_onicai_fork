@@ -294,17 +294,17 @@ template<typename T>
 bool gguf_read_emplace_helper(const struct gguf_reader & gr, std::vector<struct gguf_kv> & kv, const std::string & key, const bool is_array, const size_t n) {
     if (is_array) {
         std::vector<T> value;
-        try {
+        // try {
             if (!gr.read(value, n)) {
                 return false;
             }
-        } catch (std::length_error &) {
-            fprintf(stderr, "%s: encountered length_error while reading value for key '%s'\n", __func__, key.c_str());
-            return false;
-        } catch (std::bad_alloc &) {
-            fprintf(stderr, "%s: encountered bad_alloc error while reading value for key '%s'\n", __func__, key.c_str());
-            return false;
-        }
+        // } catch (std::length_error &) {
+        //     fprintf(stderr, "%s: encountered length_error while reading value for key '%s'\n", __func__, key.c_str());
+        //     return false;
+        // } catch (std::bad_alloc &) {
+        //     fprintf(stderr, "%s: encountered bad_alloc error while reading value for key '%s'\n", __func__, key.c_str());
+        //     return false;
+        // }
         kv.emplace_back(key, value);
     } else {
         T value;
@@ -396,15 +396,15 @@ struct gguf_context * gguf_init_from_file_impl(FILE * file, struct gguf_init_par
             bool        is_array = false;
             uint64_t    n        = 1;
 
-            try {
+            // try {
                 ok = ok && gr.read(key);
-            } catch (std::length_error &) {
-                fprintf(stderr, "%s: encountered length_error while reading key %" PRIi64 "\n", __func__, i);
-                ok = false;
-            } catch (std::bad_alloc &) {
-                fprintf(stderr, "%s: encountered bad_alloc error while reading key %" PRIi64 "\n", __func__, i);
-                ok = false;
-            }
+            // } catch (std::length_error &) {
+            //     fprintf(stderr, "%s: encountered length_error while reading key %" PRIi64 "\n", __func__, i);
+            //     ok = false;
+            // } catch (std::bad_alloc &) {
+            //     fprintf(stderr, "%s: encountered bad_alloc error while reading key %" PRIi64 "\n", __func__, i);
+            //     ok = false;
+            // }
             for (size_t j = 0; ok && j < ctx->kv.size(); ++j) {
                 if (key == ctx->kv[j].key) {
                     fprintf(stderr, "%s: duplicate key '%s' for tensors %zu and %" PRIi64 " \n", __func__, key.c_str(), j, i);
@@ -471,15 +471,15 @@ struct gguf_context * gguf_init_from_file_impl(FILE * file, struct gguf_init_par
         // tensor name
         {
             std::string name;
-            try {
+            // try {
                 ok = ok && gr.read(name);
-            } catch (std::length_error &) {
-                fprintf(stderr, "%s: encountered length_error while reading tensor name %" PRIi64 "\n", __func__, i);
-                ok = false;
-            } catch (std::bad_alloc &) {
-                fprintf(stderr, "%s: encountered bad_alloc error while reading tensor name %" PRIi64 "\n", __func__, i);
-                ok = false;
-            }
+            // } catch (std::length_error &) {
+            //     fprintf(stderr, "%s: encountered length_error while reading tensor name %" PRIi64 "\n", __func__, i);
+            //     ok = false;
+            // } catch (std::bad_alloc &) {
+            //     fprintf(stderr, "%s: encountered bad_alloc error while reading tensor name %" PRIi64 "\n", __func__, i);
+            //     ok = false;
+            // }
             if (name.length() >= GGML_MAX_NAME) {
                 fprintf(stderr, "%s: tensor name %" PRIi64 " is too long: %zu >= %d\n", __func__, i, name.length(), GGML_MAX_NAME);
                 ok = false;

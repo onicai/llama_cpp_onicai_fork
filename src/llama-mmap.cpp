@@ -1,3 +1,4 @@
+#include "ic_api.h"
 #include "llama-mmap.h"
 
 #include "llama-impl.h"
@@ -72,7 +73,7 @@ struct llama_file::impl {
     impl(const char * fname, const char * mode) {
         fp = ggml_fopen(fname, mode);
         if (fp == NULL) {
-            throw std::runtime_error(format("failed to open %s: %s", fname, strerror(errno)));
+            IC_API::trap(format("failed to open %s: %s", fname, strerror(errno)));
         }
         fp_win32 = (HANDLE) _get_osfhandle(_fileno(fp));
         seek(0, SEEK_END);
@@ -85,7 +86,7 @@ struct llama_file::impl {
         li.QuadPart = 0;
         BOOL ret = SetFilePointerEx(fp_win32, li, &li, FILE_CURRENT);
         if (!ret) {
-            throw std::runtime_error(format("read error: %s", GetErrorMessageWin32(GetLastError()).c_str()));
+            IC_API::trap(format("read error: %s", GetErrorMessageWin32(GetLastError()).c_str()));
         }
 
         return li.QuadPart;
@@ -100,7 +101,7 @@ struct llama_file::impl {
         li.QuadPart = offset;
         BOOL ret = SetFilePointerEx(fp_win32, li, NULL, whence);
         if (!ret) {
-            throw std::runtime_error(format("read error: %s", GetErrorMessageWin32(GetLastError()).c_str()));
+            IC_API::trap(format("read error: %s", GetErrorMessageWin32(GetLastError()).c_str()));
         }
     }
 
@@ -111,10 +112,10 @@ struct llama_file::impl {
             DWORD chunk_read = 0;
             BOOL result = ReadFile(fp_win32, reinterpret_cast<char*>(ptr) + bytes_read, chunk_size, &chunk_read, NULL);
             if (!result) {
-                throw std::runtime_error(format("read error: %s", GetErrorMessageWin32(GetLastError()).c_str()));
+                IC_API::trap(format("read error: %s", GetErrorMessageWin32(GetLastError()).c_str()));
             }
             if (chunk_read < chunk_size || chunk_read == 0) {
-                throw std::runtime_error("unexpectedly reached end of file");
+                IC_API::trap("unexpectedly reached end of file");
             }
 
             bytes_read += chunk_read;
@@ -134,10 +135,10 @@ struct llama_file::impl {
             DWORD chunk_written = 0;
             BOOL result = WriteFile(fp_win32, reinterpret_cast<char const*>(ptr) + bytes_written, chunk_size, &chunk_written, NULL);
             if (!result) {
-                throw std::runtime_error(format("write error: %s", GetErrorMessageWin32(GetLastError()).c_str()));
+                IC_API::trap(format("write error: %s", GetErrorMessageWin32(GetLastError()).c_str()));
             }
             if (chunk_written < chunk_size || chunk_written == 0) {
-                throw std::runtime_error("unexpectedly failed to write bytes");
+                IC_API::trap("unexpectedly failed to write bytes");
             }
 
             bytes_written += chunk_written;
@@ -157,7 +158,7 @@ struct llama_file::impl {
     impl(const char * fname, const char * mode) {
         fp = ggml_fopen(fname, mode);
         if (fp == NULL) {
-            throw std::runtime_error(format("failed to open %s: %s", fname, strerror(errno)));
+            IC_API::trap(format("failed to open %s: %s", fname, strerror(errno)));
         }
         seek(0, SEEK_END);
         size = tell();
@@ -172,7 +173,7 @@ struct llama_file::impl {
         long ret = std::ftell(fp);
 #endif
         if (ret == -1) {
-            throw std::runtime_error(format("ftell error: %s", strerror(errno)));
+            IC_API::trap(format("ftell error: %s", strerror(errno)));
         }
 
         return (size_t) ret;
@@ -186,7 +187,7 @@ struct llama_file::impl {
         int ret = std::fseek(fp, (long) offset, whence);
 #endif
         if (ret != 0) {
-            throw std::runtime_error(format("seek error: %s", strerror(errno)));
+            IC_API::trap(format("seek error: %s", strerror(errno)));
         }
     }
 
@@ -197,10 +198,10 @@ struct llama_file::impl {
         errno = 0;
         std::size_t ret = std::fread(ptr, len, 1, fp);
         if (ferror(fp)) {
-            throw std::runtime_error(format("read error: %s", strerror(errno)));
+            IC_API::trap(format("read error: %s", strerror(errno)));
         }
         if (ret != 1) {
-            throw std::runtime_error("unexpectedly reached end of file");
+            IC_API::trap("unexpectedly reached end of file");
         }
     }
 
@@ -217,7 +218,7 @@ struct llama_file::impl {
         errno = 0;
         size_t ret = std::fwrite(ptr, len, 1, fp);
         if (ret != 1) {
-            throw std::runtime_error(format("write error: %s", strerror(errno)));
+            IC_API::trap(format("write error: %s", strerror(errno)));
         }
     }
 
@@ -282,7 +283,7 @@ struct llama_mmap::impl {
 #endif
         addr = mmap(NULL, file->size(), PROT_READ, flags, fd, 0);
         if (addr == MAP_FAILED) {
-            throw std::runtime_error(format("mmap failed: %s", strerror(errno)));
+            IC_API::trap(format("mmap failed: %s", strerror(errno)));
         }
 
         if (prefetch > 0) {
@@ -368,7 +369,7 @@ struct llama_mmap::impl {
 
         if (hMapping == NULL) {
             DWORD error = GetLastError();
-            throw std::runtime_error(format("CreateFileMappingA failed: %s", llama_format_win_err(error).c_str()));
+            IC_API::trap(format("CreateFileMappingA failed: %s", llama_format_win_err(error).c_str()));
         }
 
         addr = MapViewOfFile(hMapping, FILE_MAP_READ, 0, 0, 0);
@@ -376,7 +377,7 @@ struct llama_mmap::impl {
         CloseHandle(hMapping);
 
         if (addr == NULL) {
-            throw std::runtime_error(format("MapViewOfFile failed: %s", llama_format_win_err(error).c_str()));
+            IC_API::trap(format("MapViewOfFile failed: %s", llama_format_win_err(error).c_str()));
         }
 
         if (prefetch > 0) {
@@ -396,7 +397,7 @@ struct llama_mmap::impl {
                 }
             }
 #else
-            throw std::runtime_error("PrefetchVirtualMemory unavailable");
+            IC_API::trap("PrefetchVirtualMemory unavailable");
 #endif
         }
     }
@@ -418,14 +419,14 @@ struct llama_mmap::impl {
         GGML_UNUSED(prefetch);
         GGML_UNUSED(numa);
 
-        throw std::runtime_error("mmap not supported");
+        IC_API::trap("mmap not supported");
     }
 
     void unmap_fragment(size_t first, size_t last) {
         GGML_UNUSED(first);
         GGML_UNUSED(last);
 
-        throw std::runtime_error("mmap not supported");
+        IC_API::trap("mmap not supported");
     }
 #endif
 

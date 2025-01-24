@@ -188,8 +188,6 @@ static ggml_type kv_cache_type_from_str(const std::string & s) {
         }
     }
     IC_API::trap("Unsupported cache type: " + s);
-    // return something to avoid compiler warning
-    return GGML_TYPE_F32; // unreachable
 }
 
 static std::string get_all_kv_cache_types() {
@@ -242,8 +240,6 @@ static bool common_params_parse_ex(int argc, char ** argv, common_params_context
     auto check_arg = [&](int i) {
         if (i+1 >= argc) {
             IC_API::trap("expected value for argument");
-            // return something to avoid compiler warning
-            return false; // unreachable
         }
     };
 
@@ -256,8 +252,6 @@ static bool common_params_parse_ex(int argc, char ** argv, common_params_context
         }
         if (arg_to_options.find(arg) == arg_to_options.end()) {
             IC_API::trap(string_format("error: invalid argument: %s", arg.c_str()));
-            // return something to avoid compiler warning
-            return false; // unreachable
         }
         auto opt = *arg_to_options[arg];
         if (opt.has_value_from_env()) {
@@ -304,8 +298,6 @@ static bool common_params_parse_ex(int argc, char ** argv, common_params_context
 
     if (params.prompt_cache_all && (params.interactive || params.interactive_first)) {
         IC_API::trap("error: --prompt-cache-all not supported in interactive mode yet\n");
-        // return something to avoid compiler warning
-        return false; // unreachable
     }
 
     // TODO: refactor model params in a common struct
@@ -332,8 +324,6 @@ static bool common_params_parse_ex(int argc, char ** argv, common_params_context
 
     if (params.reranking && params.embedding) {
         IC_API::trap("error: either --embedding or --reranking can be specified, but not both");
-        // return something to avoid compiler warning
-        return false; // unreachable
     }
 
     if (!params.chat_template.empty() && !common_chat_verify_template(params.chat_template, params.use_jinja)) {
@@ -342,8 +332,6 @@ static bool common_params_parse_ex(int argc, char ** argv, common_params_context
             params.chat_template.c_str(),
             params.use_jinja ? "" : "\nnote: llama.cpp was started without --jinja, we only support commonly used templates"
         ));
-        // return something to avoid compiler warning
-        return false; // unreachable
     }
 
     return true;
@@ -383,8 +371,6 @@ static std::vector<ggml_backend_dev_t> parse_device_list(const std::string & val
     auto dev_names = string_split<std::string>(value, ',');
     if (dev_names.empty()) {
         IC_API::trap("no devices specified");
-        // return something to avoid compiler warning
-        return devices; // unreachable
     }
     if (dev_names.size() == 1 && dev_names[0] == "none") {
         devices.push_back(nullptr);
@@ -393,8 +379,6 @@ static std::vector<ggml_backend_dev_t> parse_device_list(const std::string & val
             auto * dev = ggml_backend_dev_by_name(device.c_str());
             if (!dev || ggml_backend_dev_type(dev) != GGML_BACKEND_DEVICE_TYPE_GPU) {
                 IC_API::trap(string_format("invalid device: %s", device.c_str()));
-                // return something to avoid compiler warning
-                return devices; // unreachable
             }
             devices.push_back(dev);
         }

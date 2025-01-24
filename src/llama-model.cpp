@@ -1,3 +1,4 @@
+#include "ic_api.h"
 #include "llama-model.h"
 
 #include "llama-impl.h"
@@ -123,7 +124,7 @@ static bool weight_buft_supported(const llama_hparams & hparams, ggml_tensor * w
     };
     ggml_context_ptr ctx_ptr { ggml_init(params) };
     if (!ctx_ptr) {
-        throw std::runtime_error(format("failed to create ggml context"));
+        IC_API::trap(format("failed to create ggml context"));
     }
     ggml_context * ctx = ctx_ptr.get();
 
@@ -317,7 +318,8 @@ static buft_list_t make_gpu_buft_list(ggml_backend_dev_t dev, enum llama_split_m
                         return i;
                     }
                 }
-                throw std::runtime_error(format("device %s not found in its backend reg", ggml_backend_dev_name(dev)));
+                IC_API::trap(format("device %s not found in its backend reg", ggml_backend_dev_name(dev)));
+                return static_cast<size_t>(0); // unreachable
             }();
             auto * buft = ggml_backend_split_buffer_type_fn(dev_index, tensor_split);
             if (buft != nullptr) {
@@ -381,7 +383,7 @@ void llama_model::load_stats(llama_model_loader & ml) {
 void llama_model::load_arch(llama_model_loader & ml) {
     arch = ml.get_arch();
     if (arch == LLM_ARCH_UNKNOWN) {
-        throw std::runtime_error("unknown model architecture: '" + ml.get_arch_name() + "'");
+        IC_API::trap("unknown model architecture: '" + ml.get_arch_name() + "'");
     }
 }
 
@@ -488,7 +490,7 @@ void llama_model::load_hparams(llama_model_loader & ml) {
 
         if (arch == LLM_ARCH_LLAMA || arch == LLM_ARCH_DECI || arch == LLM_ARCH_FALCON) {
             if (hparams.n_rot != hparams.n_embd_head_k) {
-                throw std::runtime_error(format("invalid n_rot: %u, expected %u", hparams.n_rot, hparams.n_embd_head_k));
+                IC_API::trap(format("invalid n_rot: %u, expected %u", hparams.n_rot, hparams.n_embd_head_k));
             }
         }
     } else {
@@ -780,7 +782,7 @@ void llama_model::load_hparams(llama_model_loader & ml) {
                 }
                 bool found_swa = ml.get_key(LLM_KV_ATTENTION_SLIDING_WINDOW, hparams.n_swa, false);
                 if (!found_swa && hparams.n_swa == 0) {
-                    throw std::runtime_error("invalid value for sliding_window");
+                    IC_API::trap("invalid value for sliding_window");
                 }
             } break;
         case LLM_ARCH_PHIMOE:
@@ -1233,7 +1235,7 @@ void llama_model::load_hparams(llama_model_loader & ml) {
                 ml.get_key(LLM_KV_ATTENTION_GROUPNORM_GROUPS, hparams.n_norm_groups);
                 ml.get_key(LLM_KV_ATTENTION_CAUSAL,           hparams.causal_attn);
             } break;
-        default: throw std::runtime_error("unsupported model architecture");
+        default: IC_API::trap("unsupported model architecture");
     }
 
     pimpl->n_bytes = ml.n_bytes;
@@ -1341,7 +1343,7 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
 
             ggml_context * ctx = ggml_init(params);
             if (!ctx) {
-                throw std::runtime_error(format("failed to create ggml context"));
+                IC_API::trap(format("failed to create ggml context"));
             }
 
             ctx_map[buft] = ctx;
@@ -1375,7 +1377,7 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
         const int64_t n_ctx_train   = hparams.n_ctx_train;
 
         if (n_expert > 0 && hparams.n_expert_used == 0) {
-            throw std::runtime_error("model has expert layers but no expert layers are used");
+            IC_API::trap("model has expert layers but no expert layers are used");
         }
 
         int n_moved_tensors = 0;
@@ -1390,7 +1392,7 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
                 if (flags & TENSOR_NOT_REQUIRED) {
                     return nullptr;
                 }
-                throw std::runtime_error(format("missing tensor '%s'", tn.str().c_str()));
+                IC_API::trap(format("missing tensor '%s'", tn.str().c_str()));
             }
 
             // some models use the token embedding tensor as the output, but since these are used in different layers and with different ops
@@ -1402,11 +1404,11 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
             }
 
             llm_tensor_info info;
-            try {
+            // try {
                 info = llm_tensor_info_for(tn_tensor);
-            } catch (const std::out_of_range & e) {
-                throw std::runtime_error(format("missing tensor info mapping for %s", tn.str().c_str()));
-            }
+            // } catch (const std::out_of_range & e) {
+            //     IC_API::trap(format("missing tensor info mapping for %s", tn.str().c_str()));
+            // }
 
             // tensors with "bias" suffix are always used with GGML_OP_ADD
             ggml_op op;
@@ -1446,7 +1448,7 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
 
             ggml_backend_buffer_type_t buft = select_weight_buft(hparams, t_meta, op, *buft_list);
             if (!buft) {
-                throw std::runtime_error(format("failed to find a compatible buffer type for tensor %s", tn.str().c_str()));
+                IC_API::trap(format("failed to find a compatible buffer type for tensor %s", tn.str().c_str()));
             }
 
             // avoid using a host buffer when using mmap
@@ -1650,7 +1652,7 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
             case LLM_ARCH_GROK:
                 {
                     if (n_expert == 0) {
-                        throw std::runtime_error("Grok model cannot have zero experts");
+                        IC_API::trap("Grok model cannot have zero experts");
                     }
 
                     tok_embd = create_tensor(tn(LLM_TENSOR_TOKEN_EMBD, "weight"), {n_embd, n_vocab}, 0);
@@ -1689,7 +1691,7 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
             case LLM_ARCH_DBRX:
                 {
                     if (n_expert == 0) {
-                        throw std::runtime_error("DBRX model cannot have zero experts");
+                        IC_API::trap("DBRX model cannot have zero experts");
                     }
 
                     tok_embd = create_tensor(tn(LLM_TENSOR_TOKEN_EMBD, "weight"), {n_embd, n_vocab}, 0);
@@ -2114,10 +2116,10 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
                         layer.ffn_gate_inp = create_tensor(tn(LLM_TENSOR_FFN_GATE_INP, "weight", i), {n_embd, n_expert}, 0);
 
                         if (n_expert == 0) {
-                            throw std::runtime_error("n_expert must be > 0 for QWEN2MOE");
+                            IC_API::trap("n_expert must be > 0 for QWEN2MOE");
                         }
                         if (n_expert_used == 0) {
-                            throw std::runtime_error("n_expert_used must be > 0 for QWEN2MOE");
+                            IC_API::trap("n_expert_used must be > 0 for QWEN2MOE");
                         }
 
                         // MoE branch
@@ -2485,7 +2487,7 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
 
                     // only an expansion factor of 2 is supported for now
                     if (2 * n_embd != d_inner) {
-                        throw std::runtime_error("only an expansion factor of 2 is supported for now");
+                        IC_API::trap("only an expansion factor of 2 is supported for now");
                     }
 
                     tok_embd = create_tensor(tn(LLM_TENSOR_TOKEN_EMBD, "weight"), {n_embd, n_vocab}, 0);
@@ -2675,10 +2677,10 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
                         layer.ffn_gate_inp = create_tensor(tn(LLM_TENSOR_FFN_GATE_INP, "weight", i), {n_embd, n_expert}, 0);
 
                         if (n_expert == 0) {
-                            throw std::runtime_error("n_expert must be > 0");
+                            IC_API::trap("n_expert must be > 0");
                         }
                         if (n_expert_used == 0) {
-                            throw std::runtime_error("n_expert_used must be > 0");
+                            IC_API::trap("n_expert_used must be > 0");
                         }
 
                         // MoE branch
@@ -2814,10 +2816,10 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
                             layer.ffn_gate_inp = create_tensor(tn(LLM_TENSOR_FFN_GATE_INP, "weight", i), {n_embd, n_expert}, 0);
 
                             if (n_expert == 0) {
-                                throw std::runtime_error("n_expert must be > 0");
+                                IC_API::trap("n_expert must be > 0");
                             }
                             if (n_expert_used == 0) {
-                                throw std::runtime_error("n_expert_used must be > 0");
+                                IC_API::trap("n_expert_used must be > 0");
                             }
 
                             // MoE branch
@@ -2883,10 +2885,10 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
                             layer.ffn_exp_probs_b = create_tensor(tn(LLM_TENSOR_FFN_EXP_PROBS_B, "bias", i), {n_expert}, TENSOR_NOT_REQUIRED);
 
                             if (n_expert == 0) {
-                                throw std::runtime_error("n_expert must be > 0");
+                                IC_API::trap("n_expert must be > 0");
                             }
                             if (n_expert_used == 0) {
-                                throw std::runtime_error("n_expert_used must be > 0");
+                                IC_API::trap("n_expert_used must be > 0");
                             }
 
                             // MoE branch
@@ -3393,7 +3395,7 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
                     output_b = create_tensor(tn(LLM_TENSOR_OUTPUT, "bias"),   {n_embd}, 0);
                 } break;
             default:
-                throw std::runtime_error("unknown architecture");
+                IC_API::trap("unknown architecture");
         }
 
         if (n_moved_tensors > 0) {
@@ -3453,7 +3455,7 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
                 const size_t max_size = ggml_get_max_tensor_size(ctx);
                 ggml_backend_buffer_t buf = ggml_backend_dev_buffer_from_host_ptr(dev, (char *) addr + first, last - first, max_size);
                 if (buf == nullptr) {
-                    throw std::runtime_error(format("unable to allocate %s buffer", ggml_backend_buft_name(buft)));
+                    IC_API::trap(format("unable to allocate %s buffer", ggml_backend_buft_name(buft)));
                 }
                 pimpl->bufs.emplace_back(buf);
                 buf_map.emplace(idx, buf);
@@ -3462,7 +3464,7 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
         else {
             ggml_backend_buffer_t buf = ggml_backend_alloc_ctx_tensors_from_buft(ctx, buft);
             if (buf == nullptr) {
-                throw std::runtime_error(format("unable to allocate %s buffer", ggml_backend_buft_name(buft)));
+                IC_API::trap(format("unable to allocate %s buffer", ggml_backend_buft_name(buft)));
             }
             pimpl->bufs.emplace_back(buf);
             if (use_mlock && ggml_backend_buffer_is_host(buf)) {
@@ -3477,7 +3479,7 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
         }
 
         if (pimpl->bufs.empty()) {
-            throw std::runtime_error("failed to allocate buffer");
+            IC_API::trap("failed to allocate buffer");
         }
 
         for (auto & buf : buf_map) {
@@ -3698,7 +3700,7 @@ static bool buft_supported(ggml_backend_buffer_type_t buft, ggml_backend_dev_t d
 
     ggml_context_ptr ctx { ggml_init(params) };
     if (!ctx) {
-        throw std::runtime_error(format("failed to create ggml context"));
+        IC_API::trap(format("failed to create ggml context"));
     }
 
     ggml_backend_buffer_ptr buf { ggml_backend_buft_alloc_buffer(buft, 0) };
@@ -3725,7 +3727,7 @@ static ggml_backend_buffer_type_t select_buft(const buft_list_t & buft_list, con
         }
     }
 
-    throw std::runtime_error(format("no suitable buffer type found"));
+    IC_API::trap(format("no suitable buffer type found"));
 }
 
 ggml_backend_buffer_type_t llama_model::select_buft(int il) const {

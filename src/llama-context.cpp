@@ -1,3 +1,4 @@
+#include "ic_api.h"
 #include "llama-context.h"
 
 #include "llama-impl.h"
@@ -702,39 +703,39 @@ float * llama_get_logits_ith(struct llama_context * ctx, int32_t i) {
 
     llama_synchronize(ctx);
 
-    try {
+    // try {
         if (ctx->logits == nullptr) {
-            throw std::runtime_error("no logits");
+            IC_API::trap("no logits");
         }
 
         if (i < 0) {
             j = ctx->n_outputs + i;
             if (j < 0) {
-                throw std::runtime_error(format("negative index out of range [0, %d)", ctx->n_outputs));
+                IC_API::trap(format("negative index out of range [0, %d)", ctx->n_outputs));
             }
         } else if ((size_t) i >= ctx->output_ids.size()) {
-            throw std::runtime_error(format("out of range [0, %zu)", ctx->output_ids.size()));
+            IC_API::trap(format("out of range [0, %zu)", ctx->output_ids.size()));
         } else {
             j = ctx->output_ids[i];
         }
 
         if (j < 0) {
-            throw std::runtime_error(format("batch.logits[%d] != true", i));
+            IC_API::trap(format("batch.logits[%d] != true", i));
         }
         if (j >= ctx->n_outputs) {
             // This should not happen
-            throw std::runtime_error(format("corrupt output buffer (j=%d, n_outputs=%d)", j, ctx->n_outputs));
+            IC_API::trap(format("corrupt output buffer (j=%d, n_outputs=%d)", j, ctx->n_outputs));
         }
 
         return ctx->logits + j*ctx->model.vocab.n_tokens();
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: invalid logits id %d, reason: %s\n", __func__, i, err.what());
-#ifndef NDEBUG
-        GGML_ABORT("fatal error");
-#else
-        return nullptr;
-#endif
-    }
+//     } catch (const std::exception & err) {
+//         LLAMA_LOG_ERROR("%s: invalid logits id %d, reason: %s\n", __func__, i, err.what());
+// #ifndef NDEBUG
+//         GGML_ABORT("fatal error");
+// #else
+//         return nullptr;
+// #endif
+//     }
 }
 
 float * llama_get_embeddings(struct llama_context * ctx) {
@@ -752,39 +753,39 @@ float * llama_get_embeddings_ith(struct llama_context * ctx, int32_t i) {
 
     llama_synchronize(ctx);
 
-    try {
+    // try {
         if (ctx->embd == nullptr) {
-            throw std::runtime_error("no embeddings");
+            IC_API::trap("no embeddings");
         }
 
         if (i < 0) {
             j = ctx->n_outputs + i;
             if (j < 0) {
-                throw std::runtime_error(format("negative index out of range [0, %d)", ctx->n_outputs));
+                IC_API::trap(format("negative index out of range [0, %d)", ctx->n_outputs));
             }
         } else if ((size_t) i >= ctx->output_ids.size()) {
-            throw std::runtime_error(format("out of range [0, %zu)", ctx->output_ids.size()));
+            IC_API::trap(format("out of range [0, %zu)", ctx->output_ids.size()));
         } else {
             j = ctx->output_ids[i];
         }
 
         if (j < 0) {
-            throw std::runtime_error(format("batch.logits[%d] != true", i));
+            IC_API::trap(format("batch.logits[%d] != true", i));
         }
         if (j >= ctx->n_outputs) {
             // This should not happen
-            throw std::runtime_error(format("corrupt output buffer (j=%d, n_outputs=%d)", j, ctx->n_outputs));
+            IC_API::trap(format("corrupt output buffer (j=%d, n_outputs=%d)", j, ctx->n_outputs));
         }
 
         return ctx->embd + j*ctx->model.hparams.n_embd;
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: invalid embeddings id %d, reason: %s\n", __func__, i, err.what());
-#ifndef NDEBUG
-        GGML_ABORT("fatal error");
-#else
-        return nullptr;
-#endif
-    }
+//     } catch (const std::exception & err) {
+//         LLAMA_LOG_ERROR("%s: invalid embeddings id %d, reason: %s\n", __func__, i, err.what());
+// #ifndef NDEBUG
+//         GGML_ABORT("fatal error");
+// #else
+//         return nullptr;
+// #endif
+//     }
 }
 
 float * llama_get_embeddings_seq(struct llama_context * ctx, llama_seq_id seq_id) {
@@ -1067,7 +1068,7 @@ struct llama_data_read {
         std::string arch_str;
         read_string(arch_str);
         if (cur_arch_str != arch_str) {
-            throw std::runtime_error(format("wrong model arch: '%s' instead of '%s'", arch_str.c_str(), cur_arch_str.c_str()));
+            IC_API::trap(format("wrong model arch: '%s' instead of '%s'", arch_str.c_str(), cur_arch_str.c_str()));
         }
         // TODO: add more info which needs to be identical but which is not verified otherwise
     }
@@ -1080,7 +1081,7 @@ struct llama_data_read {
     //    rng_ss >> rng;
 
     //    if (rng_ss.fail()) {
-    //        throw std::runtime_error("failed to load RNG state");
+    //        IC_API::trap("failed to load RNG state");
     //    }
     //}
 
@@ -1091,7 +1092,7 @@ struct llama_data_read {
         read_to(&n_outputs, sizeof(n_outputs));
 
         if (n_outputs > llama_output_reserve(*ctx, n_outputs)) {
-            throw std::runtime_error("could not reserve outputs");
+            IC_API::trap("could not reserve outputs");
         }
 
         if (n_outputs) {
@@ -1101,7 +1102,7 @@ struct llama_data_read {
             for (int32_t i = 0; i < (int32_t) output_pos.size(); ++i) {
                 int32_t id = output_pos[i];
                 if ((uint32_t) id >= ctx->cparams.n_batch) {
-                    throw std::runtime_error(format("invalid output id, %d does not fit in batch size of %u", id, ctx->cparams.n_batch));
+                    IC_API::trap(format("invalid output id, %d does not fit in batch size of %u", id, ctx->cparams.n_batch));
                 }
                 ctx->output_ids[id] = i;
             }
@@ -1115,7 +1116,7 @@ struct llama_data_read {
         read_to(&logits_size, sizeof(logits_size));
 
         if (ctx->logits_size < logits_size) {
-            throw std::runtime_error("logits buffer too small");
+            IC_API::trap("logits buffer too small");
         }
 
         if (logits_size) {
@@ -1128,7 +1129,7 @@ struct llama_data_read {
         read_to(&embeddings_size, sizeof(embeddings_size));
 
         if (ctx->embd_size < embeddings_size) {
-            throw std::runtime_error("embeddings buffer too small");
+            IC_API::trap("embeddings buffer too small");
         }
 
         if (embeddings_size) {
@@ -1366,7 +1367,7 @@ struct llama_data_read {
             } else {
                 llama_kv_cache_seq_rm(ctx, seq_id, -1, -1);
             }
-            throw std::runtime_error("failed to restore kv cache");
+            IC_API::trap("failed to restore kv cache");
         }
     }
 };
@@ -1398,7 +1399,7 @@ struct llama_data_write_buffer : llama_data_write {
 
     void write(const void * src, size_t size) override {
         if (size > buf_size) {
-            throw std::runtime_error("unexpectedly reached end of buffer");
+            IC_API::trap("unexpectedly reached end of buffer");
         }
         memcpy(ptr, src, size);
         ptr += size;
@@ -1408,7 +1409,7 @@ struct llama_data_write_buffer : llama_data_write {
 
     void write_tensor_data(const struct ggml_tensor * tensor, size_t offset, size_t size) override {
         if (size > buf_size) {
-            throw std::runtime_error("unexpectedly reached end of buffer");
+            IC_API::trap("unexpectedly reached end of buffer");
         }
         ggml_backend_tensor_get(tensor, ptr, offset, size);
         ptr += size;
@@ -1431,7 +1432,7 @@ struct llama_data_read_buffer : llama_data_read {
     const uint8_t * read(size_t size) override {
         const uint8_t * base_ptr = ptr;
         if (size > buf_size) {
-            throw std::runtime_error("unexpectedly reached end of buffer");
+            IC_API::trap("unexpectedly reached end of buffer");
         }
         ptr += size;
         size_read += size;
@@ -1524,24 +1525,24 @@ static size_t llama_state_get_data_internal(struct llama_context * ctx, llama_da
 
 size_t llama_state_get_data(struct llama_context * ctx, uint8_t * dst, size_t size) {
     llama_data_write_buffer data_ctx(dst, size);
-    try {
+    // try {
         return llama_state_get_data_internal(ctx, data_ctx);
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: error saving state: %s\n", __func__, err.what());
-        return 0;
-    }
+    // } catch (const std::exception & err) {
+    //     LLAMA_LOG_ERROR("%s: error saving state: %s\n", __func__, err.what());
+    //     return 0;
+    // }
 }
 
 // Returns the *actual* size of the state.
 // Intended to be used when saving to state to a buffer.
 size_t llama_state_get_size(struct llama_context * ctx) {
     llama_data_write_dummy data_ctx;
-    try {
+    // try {
         return llama_state_get_data_internal(ctx, data_ctx);
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: error getting state size: %s\n", __func__, err.what());
-        return 0;
-    }
+    // } catch (const std::exception & err) {
+    //     LLAMA_LOG_ERROR("%s: error getting state size: %s\n", __func__, err.what());
+    //     return 0;
+    // }
 }
 
 static size_t llama_state_set_data_internal(struct llama_context * ctx, llama_data_read & data_ctx) {
@@ -1562,12 +1563,12 @@ static size_t llama_state_set_data_internal(struct llama_context * ctx, llama_da
 // Sets the state reading from the specified source address
 size_t llama_state_set_data(struct llama_context * ctx, const uint8_t * src, size_t size) {
     llama_data_read_buffer data_ctx(src, size);
-    try {
+    // try {
         return llama_state_set_data_internal(ctx, data_ctx);
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: error loading state: %s\n", __func__, err.what());
-        return 0;
-    }
+    // } catch (const std::exception & err) {
+    //     LLAMA_LOG_ERROR("%s: error loading state: %s\n", __func__, err.what());
+    //     return 0;
+    // }
 }
 
 static bool llama_state_load_file_internal(struct llama_context * ctx, const char * path_session, llama_token * tokens_out, size_t n_token_capacity, size_t * n_token_count_out) {
@@ -1613,12 +1614,12 @@ static bool llama_state_load_file_internal(struct llama_context * ctx, const cha
 }
 
 bool llama_state_load_file(struct llama_context * ctx, const char * path_session, llama_token * tokens_out, size_t n_token_capacity, size_t * n_token_count_out) {
-    try {
+    // try {
         return llama_state_load_file_internal(ctx, path_session, tokens_out, n_token_capacity, n_token_count_out);
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: error loading session file: %s\n", __func__, err.what());
-        return false;
-    }
+    // } catch (const std::exception & err) {
+    //     LLAMA_LOG_ERROR("%s: error loading session file: %s\n", __func__, err.what());
+    //     return false;
+    // }
 }
 
 static bool llama_state_save_file_internal(struct llama_context * ctx, const char * path_session, const llama_token * tokens, size_t n_token_count) {
@@ -1639,12 +1640,12 @@ static bool llama_state_save_file_internal(struct llama_context * ctx, const cha
 }
 
 bool llama_state_save_file(struct llama_context * ctx, const char * path_session, const llama_token * tokens, size_t n_token_count) {
-    try {
+    // try {
         return llama_state_save_file_internal(ctx, path_session, tokens, n_token_count);
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: error saving session file: %s\n", __func__, err.what());
-        return false;
-    }
+    // } catch (const std::exception & err) {
+    //     LLAMA_LOG_ERROR("%s: error saving session file: %s\n", __func__, err.what());
+    //     return false;
+    // }
 }
 
 static size_t llama_state_seq_get_data_internal(struct llama_context * ctx, llama_data_write & data_ctx, llama_seq_id seq_id) {
@@ -1662,12 +1663,12 @@ size_t llama_state_seq_get_size(struct llama_context * ctx, llama_seq_id seq_id)
 
 size_t llama_state_seq_get_data(struct llama_context * ctx, uint8_t * dst, size_t size, llama_seq_id seq_id) {
     llama_data_write_buffer data_ctx(dst, size);
-    try {
+    // try {
         return llama_state_seq_get_data_internal(ctx, data_ctx, seq_id);
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: error saving sequence state: %s\n", __func__, err.what());
-        return 0;
-    }
+    // } catch (const std::exception & err) {
+    //     LLAMA_LOG_ERROR("%s: error saving sequence state: %s\n", __func__, err.what());
+    //     return 0;
+    // }
 }
 
 static size_t llama_state_seq_set_data_internal(struct llama_context * ctx, llama_data_read & data_ctx, llama_seq_id dest_seq_id) {
@@ -1680,12 +1681,12 @@ static size_t llama_state_seq_set_data_internal(struct llama_context * ctx, llam
 
 size_t llama_state_seq_set_data(struct llama_context * ctx, const uint8_t * src, size_t size, llama_seq_id dest_seq_id) {
     llama_data_read_buffer data_ctx(src, size);
-    try {
+    // try {
         return llama_state_seq_set_data_internal(ctx, data_ctx, dest_seq_id);
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: error loading sequence state: %s\n", __func__, err.what());
-        return 0;
-    }
+    // } catch (const std::exception & err) {
+    //     LLAMA_LOG_ERROR("%s: error loading sequence state: %s\n", __func__, err.what());
+    //     return 0;
+    // }
 }
 
 static size_t llama_state_seq_save_file_internal(struct llama_context * ctx, const char * filepath, llama_seq_id seq_id, const llama_token * tokens, size_t n_token_count) {
@@ -1751,21 +1752,21 @@ static size_t llama_state_seq_load_file_internal(struct llama_context * ctx, con
 }
 
 size_t llama_state_seq_save_file(struct llama_context * ctx, const char * filepath, llama_seq_id seq_id, const llama_token * tokens, size_t n_token_count) {
-    try {
+    // try {
         return llama_state_seq_save_file_internal(ctx, filepath, seq_id, tokens, n_token_count);
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: error saving sequence state file: %s\n", __func__, err.what());
-        return 0;
-    }
+    // } catch (const std::exception & err) {
+    //     LLAMA_LOG_ERROR("%s: error saving sequence state file: %s\n", __func__, err.what());
+    //     return 0;
+    // }
 }
 
 size_t llama_state_seq_load_file(struct llama_context * ctx, const char * filepath, llama_seq_id dest_seq_id, llama_token * tokens_out, size_t n_token_capacity, size_t * n_token_count_out) {
-    try {
+    // try {
         return llama_state_seq_load_file_internal(ctx, filepath, dest_seq_id, tokens_out, n_token_capacity, n_token_count_out);
-    } catch (const std::exception & err) {
-        LLAMA_LOG_ERROR("%s: error loading sequence state file: %s\n", __func__, err.what());
-        return 0;
-    }
+    // } catch (const std::exception & err) {
+    //     LLAMA_LOG_ERROR("%s: error loading sequence state file: %s\n", __func__, err.what());
+    //     return 0;
+    // }
 }
 
 const std::vector<std::pair<std::string, struct ggml_tensor *>> & llama_internal_get_tensor_map(
