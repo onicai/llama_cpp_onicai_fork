@@ -1,12 +1,14 @@
 #include "ggml-threading.h"
-#include <mutex>
+// #include <mutex>
 
-std::mutex ggml_critical_section_mutex;
+// std::mutex ggml_critical_section_mutex;
 
 void ggml_critical_section_start() {
-    ggml_critical_section_mutex.lock();
+    //ICPP-no-threading In a single-threaded context, this is a no-op.
+    // ggml_critical_section_mutex.lock();
 }
 
 void ggml_critical_section_end(void) {
-    ggml_critical_section_mutex.unlock();
+    //ICPP-no-threading In a single-threaded context, this is a no-op.
+    // ggml_critical_section_mutex.unlock();
 }

@@ -3,7 +3,7 @@
 
 #include "ggml-backend.h"
 #include "ggml-impl.h"
-// #include "ggml-threading.h"
+#include "ggml-threading.h"
 #include "ggml.h"
 
 // FIXME: required here for quantization functions

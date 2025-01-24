@@ -1,3 +1,4 @@
+#include "ic_api.h"
 #include "arg.h"
 
 #include "log.h"
@@ -186,7 +187,9 @@ static ggml_type kv_cache_type_from_str(const std::string & s) {
             return type;
         }
     }
-    throw std::runtime_error("Unsupported cache type: " + s);
+    IC_API::trap("Unsupported cache type: " + s);
+    // return something to avoid compiler warning
+    return GGML_TYPE_F32; // unreachable
 }
 
 static std::string get_all_kv_cache_types() {
@@ -217,7 +220,7 @@ static bool common_params_parse_ex(int argc, char ** argv, common_params_context
     for (auto & opt : ctx_arg.options) {
         std::string value;
         if (opt.get_value_from_env(value)) {
-            try {
+            // try {
                 if (opt.handler_void && (value == "1" || value == "true")) {
                     opt.handler_void(params);
                 }
@@ -228,17 +231,19 @@ static bool common_params_parse_ex(int argc, char ** argv, common_params_context
                     opt.handler_string(params, value);
                     continue;
                 }
-            } catch (std::exception & e) {
-                throw std::invalid_argument(string_format(
-                    "error while handling environment variable \"%s\": %s\n\n", opt.env, e.what()));
-            }
+            // } catch (std::exception & e) {
+            //     IC_API::trap(string_format(
+            //         "error while handling environment variable \"%s\": %s\n\n", opt.env, e.what()));
+            // }
         }
     }
 
     // handle command line arguments
     auto check_arg = [&](int i) {
         if (i+1 >= argc) {
-            throw std::invalid_argument("expected value for argument");
+            IC_API::trap("expected value for argument");
+            // return something to avoid compiler warning
+            return false; // unreachable
         }
     };
 
@@ -250,13 +255,15 @@ static bool common_params_parse_ex(int argc, char ** argv, common_params_context
             std::replace(arg.begin(), arg.end(), '_', '-');
         }
         if (arg_to_options.find(arg) == arg_to_options.end()) {
-            throw std::invalid_argument(string_format("error: invalid argument: %s", arg.c_str()));
+            IC_API::trap(string_format("error: invalid argument: %s", arg.c_str()));
+            // return something to avoid compiler warning
+            return false; // unreachable
         }
         auto opt = *arg_to_options[arg];
         if (opt.has_value_from_env()) {
             fprintf(stderr, "warn: %s environment variable is set, but will be overwritten by command line argument %s\n", opt.env, arg.c_str());
         }
-        try {
+        // try {
             if (opt.handler_void) {
                 opt.handler_void(params);
                 continue;
@@ -281,12 +288,12 @@ static bool common_params_parse_ex(int argc, char ** argv, common_params_context
                 opt.handler_str_str(params, val, val2);
                 continue;
             }
-        } catch (std::exception & e) {
-            throw std::invalid_argument(string_format(
-                "error while handling argument \"%s\": %s\n\n"
-                "usage:\n%s\n\nto show complete usage, run with -h",
-                arg.c_str(), e.what(), arg_to_options[arg]->to_string().c_str()));
-        }
+        // } catch (std::exception & e) {
+        //     IC_API::trap(string_format(
+        //         "error while handling argument \"%s\": %s\n\n"
+        //         "usage:\n%s\n\nto show complete usage, run with -h",
+        //         arg.c_str(), e.what(), arg_to_options[arg]->to_string().c_str()));
+        // }
     }
 
     postprocess_cpu_params(params.cpuparams,       nullptr);
@@ -296,7 +303,9 @@ static bool common_params_parse_ex(int argc, char ** argv, common_params_context
     postprocess_cpu_params(params.speculative.cpuparams_batch, &params.cpuparams_batch);
 
     if (params.prompt_cache_all && (params.interactive || params.interactive_first)) {
-        throw std::invalid_argument("error: --prompt-cache-all not supported in interactive mode yet\n");
+        IC_API::trap("error: --prompt-cache-all not supported in interactive mode yet\n");
+        // return something to avoid compiler warning
+        return false; // unreachable
     }
 
     // TODO: refactor model params in a common struct
@@ -322,15 +331,19 @@ static bool common_params_parse_ex(int argc, char ** argv, common_params_context
     }
 
     if (params.reranking && params.embedding) {
-        throw std::invalid_argument("error: either --embedding or --reranking can be specified, but not both");
+        IC_API::trap("error: either --embedding or --reranking can be specified, but not both");
+        // return something to avoid compiler warning
+        return false; // unreachable
     }
 
     if (!params.chat_template.empty() && !common_chat_verify_template(params.chat_template, params.use_jinja)) {
-        throw std::runtime_error(string_format(
+        IC_API::trap(string_format(
             "error: the supplied chat template is not supported: %s%s\n",
             params.chat_template.c_str(),
             params.use_jinja ? "" : "\nnote: llama.cpp was started without --jinja, we only support commonly used templates"
         ));
+        // return something to avoid compiler warning
+        return false; // unreachable
     }
 
     return true;
@@ -369,7 +382,9 @@ static std::vector<ggml_backend_dev_t> parse_device_list(const std::string & val
     std::vector<ggml_backend_dev_t> devices;
     auto dev_names = string_split<std::string>(value, ',');
     if (dev_names.empty()) {
-        throw std::invalid_argument("no devices specified");
+        IC_API::trap("no devices specified");
+        // return something to avoid compiler warning
+        return devices; // unreachable
     }
     if (dev_names.size() == 1 && dev_names[0] == "none") {
         devices.push_back(nullptr);
@@ -377,7 +392,9 @@ static std::vector<ggml_backend_dev_t> parse_device_list(const std::string & val
         for (const auto & device : dev_names) {
             auto * dev = ggml_backend_dev_by_name(device.c_str());
             if (!dev || ggml_backend_dev_type(dev) != GGML_BACKEND_DEVICE_TYPE_GPU) {
-                throw std::invalid_argument(string_format("invalid device: %s", device.c_str()));
+                IC_API::trap(string_format("invalid device: %s", device.c_str()));
+                // return something to avoid compiler warning
+                return devices; // unreachable
             }
             devices.push_back(dev);
         }
@@ -389,23 +406,23 @@ static std::vector<ggml_backend_dev_t> parse_device_list(const std::string & val
 static void add_rpc_devices(std::string servers) {
     auto rpc_servers = string_split<std::string>(servers, ',');
     if (rpc_servers.empty()) {
-        throw std::invalid_argument("no RPC servers specified");
+        IC_API::trap("no RPC servers specified");
     }
     ggml_backend_reg_t rpc_reg = ggml_backend_reg_by_name("RPC");
     if (!rpc_reg) {
-        throw std::invalid_argument("failed to find RPC backend");
+        IC_API::trap("failed to find RPC backend");
     }
     typedef ggml_backend_dev_t (*ggml_backend_rpc_add_device_t)(const char * endpoint);
     ggml_backend_rpc_add_device_t ggml_backend_rpc_add_device_fn = (ggml_backend_rpc_add_device_t) ggml_backend_reg_get_proc_address(rpc_reg, "ggml_backend_rpc_add_device");
     if (!ggml_backend_rpc_add_device_fn) {
-        throw std::invalid_argument("failed to find RPC device add function");
+        IC_API::trap("failed to find RPC device add function");
     }
     for (const auto & server : rpc_servers) {
         ggml_backend_dev_t dev = ggml_backend_rpc_add_device_fn(server.c_str());
         if (dev) {
             ggml_backend_device_register(dev);
         } else {
-            throw std::invalid_argument("failed to register RPC device");
+            IC_API::trap("failed to register RPC device");
         }
     }
 }
@@ -414,7 +431,7 @@ bool common_params_parse(int argc, char ** argv, common_params & params, llama_e
     auto ctx_arg = common_params_parser_init(params, ex, print_usage);
     const common_params params_org = ctx_arg.params; // the example can modify the default params
 
-    try {
+    // try {
         if (!common_params_parse_ex(argc, argv, ctx_arg)) {
             ctx_arg.params = params_org;
             return false;
@@ -426,11 +443,11 @@ bool common_params_parse(int argc, char ** argv, common_params & params, llama_e
             }
             exit(0);
         }
-    } catch (const std::invalid_argument & ex) {
-        fprintf(stderr, "%s\n", ex.what());
-        ctx_arg.params = params_org;
-        return false;
-    }
+    // } catch (const std::invalid_argument & ex) {
+    //     fprintf(stderr, "%s\n", ex.what());
+    //     ctx_arg.params = params_org;
+    //     return false;
+    // }
 
     return true;
 }
@@ -541,7 +558,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         [](common_params & params, const std::string & mask) {
             params.cpuparams.mask_valid = true;
             if (!parse_cpu_mask(mask, params.cpuparams.cpumask)) {
-                throw std::invalid_argument("invalid cpumask");
+                IC_API::trap("invalid cpumask");
             }
         }
     ));
@@ -551,7 +568,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         [](common_params & params, const std::string & range) {
             params.cpuparams.mask_valid = true;
             if (!parse_cpu_range(range, params.cpuparams.cpumask)) {
-                throw std::invalid_argument("invalid range");
+                IC_API::trap("invalid range");
             }
         }
     ));
@@ -567,7 +584,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         string_format("set process/thread priority : 0-normal, 1-medium, 2-high, 3-realtime (default: %d)\n", params.cpuparams.priority),
         [](common_params & params, int prio) {
             if (prio < 0 || prio > 3) {
-                throw std::invalid_argument("invalid value");
+                IC_API::trap("invalid value");
             }
             params.cpuparams.priority = (enum ggml_sched_priority) prio;
         }
@@ -585,7 +602,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         [](common_params & params, const std::string & mask) {
             params.cpuparams_batch.mask_valid = true;
             if (!parse_cpu_mask(mask, params.cpuparams_batch.cpumask)) {
-                throw std::invalid_argument("invalid cpumask");
+                IC_API::trap("invalid cpumask");
             }
         }
     ));
@@ -595,7 +612,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         [](common_params & params, const std::string & range) {
             params.cpuparams_batch.mask_valid = true;
             if (!parse_cpu_range(range, params.cpuparams_batch.cpumask)) {
-                throw std::invalid_argument("invalid range");
+                IC_API::trap("invalid range");
             }
         }
     ));
@@ -611,7 +628,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         string_format("set process/thread priority : 0-normal, 1-medium, 2-high, 3-realtime (default: %d)\n", params.cpuparams_batch.priority),
         [](common_params & params, int prio) {
             if (prio < 0 || prio > 3) {
-                throw std::invalid_argument("invalid value");
+                IC_API::trap("invalid value");
             }
             params.cpuparams_batch.priority = (enum ggml_sched_priority) prio;
         }
@@ -716,7 +733,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         [](common_params & params, const std::string & value) {
             std::ifstream file(value);
             if (!file) {
-                throw std::runtime_error(string_format("error: failed to open file '%s'\n", value.c_str()));
+                IC_API::trap(string_format("error: failed to open file '%s'\n", value.c_str()));
             }
             // store the external file name in params
             params.prompt_file = value;
@@ -732,7 +749,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         [](common_params & params, const std::string & value) {
             std::ifstream file(value);
             if (!file) {
-                throw std::runtime_error(string_format("error: failed to open file '%s'\n", value.c_str()));
+                IC_API::trap(string_format("error: failed to open file '%s'\n", value.c_str()));
             }
             params.in_files.push_back(value);
         }
@@ -743,7 +760,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         [](common_params & params, const std::string & value) {
             std::ifstream file(value, std::ios::binary);
             if (!file) {
-                throw std::runtime_error(string_format("error: failed to open file '%s'\n", value.c_str()));
+                IC_API::trap(string_format("error: failed to open file '%s'\n", value.c_str()));
             }
             // store the external file name in params
             params.prompt_file = value;
@@ -972,7 +989,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         string_format("last n tokens to consider for penalize (default: %d, 0 = disabled, -1 = ctx_size)", params.sampling.penalty_last_n),
         [](common_params & params, int value) {
             if (value < -1) {
-                throw std::runtime_error(string_format("error: invalid repeat-last-n = %d\n", value));
+                IC_API::trap(string_format("error: invalid repeat-last-n = %d\n", value));
             }
             params.sampling.penalty_last_n = value;
             params.sampling.n_prev = std::max(params.sampling.n_prev, params.sampling.penalty_last_n);
@@ -1029,7 +1046,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         string_format("set DRY penalty for the last n tokens (default: %d, 0 = disable, -1 = context size)", params.sampling.dry_penalty_last_n),
         [](common_params & params, int value) {
             if (value < -1) {
-                throw std::runtime_error(string_format("error: invalid dry-penalty-last-n = %d\n", value));
+                IC_API::trap(string_format("error: invalid dry-penalty-last-n = %d\n", value));
             }
             params.sampling.dry_penalty_last_n = value;
         }
@@ -1106,16 +1123,16 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
             llama_token key;
             char sign;
             std::string value_str;
-            try {
+            // try {
                 if (ss >> key && ss >> sign && std::getline(ss, value_str) && (sign == '+' || sign == '-')) {
                     const float bias = std::stof(value_str) * ((sign == '-') ? -1.0f : 1.0f);
                     params.sampling.logit_bias.push_back({key, bias});
                 } else {
-                    throw std::invalid_argument("invalid input format");
+                    IC_API::trap("invalid input format");
                 }
-            } catch (const std::exception&) {
-                throw std::invalid_argument("invalid input format");
-            }
+            // } catch (const std::exception&) {
+            //     IC_API::trap("invalid input format");
+            // }
         }
     ).set_sparam());
     add_opt(common_arg(
@@ -1131,7 +1148,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         [](common_params & params, const std::string & value) {
             std::ifstream file(value);
             if (!file) {
-                throw std::runtime_error(string_format("error: failed to open file '%s'\n", value.c_str()));
+                IC_API::trap(string_format("error: failed to open file '%s'\n", value.c_str()));
             }
             std::copy(
                 std::istreambuf_iterator<char>(file),
@@ -1156,7 +1173,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
             else if (value == "cls")  { params.pooling_type = LLAMA_POOLING_TYPE_CLS;  }
             else if (value == "last") { params.pooling_type = LLAMA_POOLING_TYPE_LAST; }
             else if (value == "rank") { params.pooling_type = LLAMA_POOLING_TYPE_RANK; }
-            else { throw std::invalid_argument("invalid value"); }
+            else { IC_API::trap("invalid value"); }
         }
     ).set_examples({LLAMA_EXAMPLE_EMBEDDING, LLAMA_EXAMPLE_RETRIEVAL, LLAMA_EXAMPLE_SERVER}).set_env("LLAMA_ARG_POOLING"));
     add_opt(common_arg(
@@ -1165,7 +1182,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         [](common_params & params, const std::string & value) {
             /**/ if (value == "causal") { params.attention_type = LLAMA_ATTENTION_TYPE_CAUSAL; }
             else if (value == "non-causal") { params.attention_type = LLAMA_ATTENTION_TYPE_NON_CAUSAL; }
-            else { throw std::invalid_argument("invalid value"); }
+            else { IC_API::trap("invalid value"); }
         }
     ).set_examples({LLAMA_EXAMPLE_EMBEDDING}));
     add_opt(common_arg(
@@ -1175,7 +1192,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
             /**/ if (value == "none") { params.rope_scaling_type = LLAMA_ROPE_SCALING_TYPE_NONE; }
             else if (value == "linear") { params.rope_scaling_type = LLAMA_ROPE_SCALING_TYPE_LINEAR; }
             else if (value == "yarn") { params.rope_scaling_type = LLAMA_ROPE_SCALING_TYPE_YARN; }
-            else { throw std::invalid_argument("invalid value"); }
+            else { IC_API::trap("invalid value"); }
         }
     ).set_env("LLAMA_ARG_ROPE_SCALING_TYPE"));
     add_opt(common_arg(
@@ -1450,7 +1467,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
             /**/ if (value == "distribute" || value == "") { params.numa = GGML_NUMA_STRATEGY_DISTRIBUTE; }
             else if (value == "isolate") { params.numa = GGML_NUMA_STRATEGY_ISOLATE; }
             else if (value == "numactl") { params.numa = GGML_NUMA_STRATEGY_NUMACTL; }
-            else { throw std::invalid_argument("invalid value"); }
+            else { IC_API::trap("invalid value"); }
         }
     ).set_env("LLAMA_ARG_NUMA"));
     add_opt(common_arg(
@@ -1504,7 +1521,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
             } else if (arg_next == "row") {
                 params.split_mode = LLAMA_SPLIT_MODE_ROW;
             } else {
-                throw std::invalid_argument("invalid value");
+                IC_API::trap("invalid value");
             }
             if (!llama_supports_gpu_offload()) {
                 fprintf(stderr, "warning: llama.cpp was compiled without support for GPU offload. Setting the split mode has no effect.\n");
@@ -1522,7 +1539,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
             std::sregex_token_iterator it{ arg_next.begin(), arg_next.end(), regex, -1 };
             std::vector<std::string> split_arg{ it, {} };
             if (split_arg.size() >= llama_max_devices()) {
-                throw std::invalid_argument(
+                IC_API::trap(
                     string_format("got %d input configs, but system only has %d devices", (int)split_arg.size(), (int)llama_max_devices())
                 );
             }
@@ -1561,7 +1578,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         "types: int, float, bool, str. example: --override-kv tokenizer.ggml.add_bos_token=bool:false",
         [](common_params & params, const std::string & value) {
             if (!string_parse_kv_override(value.c_str(), params.kv_overrides)) {
-                throw std::runtime_error(string_format("error: Invalid type for KV override: %s\n", value.c_str()));
+                IC_API::trap(string_format("error: Invalid type for KV override: %s\n", value.c_str()));
             }
         }
     ));
@@ -1680,7 +1697,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         [](common_params & params, const std::string & value) {
             std::ifstream file(value, std::ios::binary);
             if (!file) {
-                throw std::runtime_error(string_format("error: failed to open file '%s'\n", value.c_str()));
+                IC_API::trap(string_format("error: failed to open file '%s'\n", value.c_str()));
             }
             params.context_files.push_back(value);
         }
@@ -1869,7 +1886,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         [](common_params & params, const std::string & value) {
             std::ifstream key_file(value);
             if (!key_file) {
-                throw std::runtime_error(string_format("error: failed to open file '%s'\n", value.c_str()));
+                IC_API::trap(string_format("error: failed to open file '%s'\n", value.c_str()));
             }
             std::string key;
             while (std::getline(key_file, key)) {
@@ -1985,7 +2002,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         [](common_params & params, const std::string & value) {
             std::ifstream file(value);
             if (!file) {
-                throw std::runtime_error(string_format("error: failed to open file '%s'\n", value.c_str()));
+                IC_API::trap(string_format("error: failed to open file '%s'\n", value.c_str()));
             }
             std::copy(
                 std::istreambuf_iterator<char>(file),
@@ -2048,7 +2065,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         [](common_params & params, const std::string & value) {
             /**/ if (value == "pca") { params.cvector_dimre_method = DIMRE_METHOD_PCA; }
             else if (value == "mean") { params.cvector_dimre_method = DIMRE_METHOD_MEAN; }
-            else { throw std::invalid_argument("invalid value"); }
+            else { IC_API::trap("invalid value"); }
         }
     ).set_examples({LLAMA_EXAMPLE_CVECTOR_GENERATOR}));
     add_opt(common_arg(
@@ -2139,7 +2156,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         [](common_params & params, const std::string & mask) {
             params.speculative.cpuparams.mask_valid = true;
             if (!parse_cpu_mask(mask, params.speculative.cpuparams.cpumask)) {
-                throw std::invalid_argument("invalid cpumask");
+                IC_API::trap("invalid cpumask");
             }
         }
     ).set_examples({LLAMA_EXAMPLE_SPECULATIVE}));
@@ -2149,7 +2166,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         [](common_params & params, const std::string & range) {
             params.speculative.cpuparams.mask_valid = true;
             if (!parse_cpu_range(range, params.speculative.cpuparams.cpumask)) {
-                throw std::invalid_argument("invalid range");
+                IC_API::trap("invalid range");
             }
         }
     ).set_examples({LLAMA_EXAMPLE_SPECULATIVE}));
@@ -2165,7 +2182,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         string_format("set draft process/thread priority : 0-normal, 1-medium, 2-high, 3-realtime (default: %d)\n", params.speculative.cpuparams.priority),
         [](common_params & params, int prio) {
             if (prio < 0 || prio > 3) {
-                throw std::invalid_argument("invalid value");
+                IC_API::trap("invalid value");
             }
             params.speculative.cpuparams.priority = (enum ggml_sched_priority) prio;
         }
@@ -2183,7 +2200,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         [](common_params & params, const std::string & mask) {
             params.speculative.cpuparams_batch.mask_valid = true;
             if (!parse_cpu_mask(mask, params.speculative.cpuparams_batch.cpumask)) {
-                throw std::invalid_argument("invalid cpumask");
+                IC_API::trap("invalid cpumask");
             }
         }
     ).set_examples({LLAMA_EXAMPLE_SPECULATIVE}));
@@ -2193,7 +2210,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         [](common_params & params, const std::string & range) {
             params.speculative.cpuparams_batch.mask_valid = true;
             if (!parse_cpu_range(range, params.speculative.cpuparams_batch.cpumask)) {
-                throw std::invalid_argument("invalid cpumask");
+                IC_API::trap("invalid cpumask");
             }
         }
     ).set_examples({LLAMA_EXAMPLE_SPECULATIVE}));
@@ -2209,7 +2226,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         string_format("set draft process/thread priority : 0-normal, 1-medium, 2-high, 3-realtime (default: %d)\n", params.speculative.cpuparams_batch.priority),
         [](common_params & params, int prio) {
             if (prio < 0 || prio > 3) {
-                throw std::invalid_argument("invalid value");
+                IC_API::trap("invalid value");
             }
             params.speculative.cpuparams_batch.priority = (enum ggml_sched_priority) prio;
         }
