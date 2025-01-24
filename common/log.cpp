@@ -122,7 +122,8 @@ struct common_log {
         file = nullptr;
         prefix = false;
         timestamps = false;
-        running = false;
+        //icpp-no-thread - in single thread, it is always running
+        // running = false;
         t_start = t_us();
 
         // initial message size - will be expanded if longer messages arrive
@@ -153,7 +154,8 @@ private:
 
     bool prefix;
     bool timestamps;
-    bool running;
+    //icpp-no-thread - in single thread, it is always running
+    // bool running;
 
     int64_t t_start;
 
@@ -169,10 +171,11 @@ public:
     void add(enum ggml_log_level level, const char * fmt, va_list args) {
         //icpp-no-thread std::lock_guard<std::mutex> lock(mtx);
 
-        if (!running) {
-            // discard messages while the worker thread is paused
-            return;
-        }
+        //icpp-no-thread - in single thread, it is always running
+        // if (!running) {
+        //     // discard messages while the worker thread is paused
+        //     return;
+        // }
 
         auto & entry = entries[tail];
 
@@ -243,62 +246,103 @@ public:
         //icpp-no-thread cv.notify_one();
     }
 
+    //icpp-no-thread rewritten for single threaded execution
     void resume() {
-        //icpp-no-thread std::lock_guard<std::mutex> lock(mtx);
+        //icpp-no-thread - in single thread, it is always running
+        // if (running) {
+        //     return;
+        // }
 
-        if (running) {
-            return;
-        }
+        // running = true;
 
-        running = true;
+        while (head != tail) {
+            cur = entries[head];
+            head = (head + 1) % entries.size();
 
-        //icpp-no-thread thrd = std::thread([this]() {
-            while (true) {
-                {
-                    //icpp-no-thread std::unique_lock<std::mutex> lock(mtx);
-                    //icpp-no-thread cv.wait(lock, [this]() { return head != tail; });
-
-                    cur = entries[head];
-
-                    head = (head + 1) % entries.size();
-                }
-
-                if (cur.is_end) {
-                    break;
-                }
-
-                cur.print(); // stdout and stderr
-
-                if (file) {
-                    cur.print(file);
-                }
+            if (cur.is_end) {
+                //icpp-no-thread - in single thread, it is always running
+                // running = false;
+                break;
             }
-        //icpp-no-thread });
-    }
 
+            cur.print(); // Print to stdout and stderr
+            if (file) {
+                cur.print(file);
+            }
+        }
+    }
+    // void resume() {
+    //     std::lock_guard<std::mutex> lock(mtx);
+
+    //     if (running) {
+    //         return;
+    //     }
+
+    //     running = true;
+
+    //     thrd = std::thread([this]() {
+    //         while (true) {
+    //             {
+    //                 std::unique_lock<std::mutex> lock(mtx);
+    //                 cv.wait(lock, [this]() { return head != tail; });
+
+    //                 cur = entries[head];
+
+    //                 head = (head + 1) % entries.size();
+    //             }
+
+    //             if (cur.is_end) {
+    //                 break;
+    //             }
+
+    //             cur.print(); // stdout and stderr
+
+    //             if (file) {
+    //                 cur.print(file);
+    //             }
+    //         }
+    //     });
+    // }
+
+    //icpp-no-thread rewritten for single threaded execution
     void pause() {
-        {
-            //icpp-no-thread std::lock_guard<std::mutex> lock(mtx);
+        //icpp-no-thread - in single thread, it is always running
+        // if (!running) {
+        //     return;
+        // }
 
-            if (!running) {
-                return;
-            }
+        // running = false;
 
-            running = false;
+        // Push an entry to signal stopping
+        auto &entry = entries[tail];
+        entry.is_end = true;
 
-            // push an entry to signal the worker thread to stop
-            {
-                auto & entry = entries[tail];
-                entry.is_end = true;
-
-                tail = (tail + 1) % entries.size();
-            }
-
-            //icpp-no-thread cv.notify_one();
-        }
-
-        //icpp-no-thread thrd.join();
+        tail = (tail + 1) % entries.size();
     }
+    // void pause() {
+    //     {
+    //         std::lock_guard<std::mutex> lock(mtx);
+
+    //         if (!running) {
+    //             return;
+    //         }
+
+    //         running = false;
+
+    //         // push an entry to signal the worker thread to stop
+    //         {
+    //             auto & entry = entries[tail];
+    //             entry.is_end = true;
+
+    //             tail = (tail + 1) % entries.size();
+    //         }
+
+    //         cv.notify_one();
+    //     }
+
+    //     thrd.join();
+    // }
+
 
     void set_file(const char * path) {
         pause();
@@ -381,6 +425,11 @@ void common_log_add(struct common_log * log, enum ggml_log_level level, const ch
     va_list args;
     va_start(args, fmt);
     log->add(level, fmt, args);
+    //icpp-no-thread - start
+    // in our single thread case, we also call log->resume() here, 
+    // which does the actual output of the log message
+    log->resume();
+    //icpp-no-thread - end
     va_end(args);
 }
 
