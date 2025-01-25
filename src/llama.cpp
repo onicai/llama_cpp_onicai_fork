@@ -52,17 +52,17 @@ static int llama_model_load(const std::string & fname, std::vector<std::string> 
         // try {
             model.load_arch(ml);
         // } catch(const std::exception & e) {
-            IC_API::trap("error loading model architecture: ");
+            // IC_API::trap("error loading model architecture: ");
         // }
         // try {
             model.load_hparams(ml);
         // } catch(const std::exception & e) {
-            IC_API::trap("error loading model hyperparameters: ");
+            // IC_API::trap("error loading model hyperparameters: ");
         // }
         // try {
             model.load_vocab(ml);
         // } catch(const std::exception & e) {
-            IC_API::trap("error loading model vocabulary: ");
+            // IC_API::trap("error loading model vocabulary: ");
         // }
 
         model.load_stats(ml);
