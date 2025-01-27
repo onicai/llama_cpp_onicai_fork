@@ -1306,6 +1306,7 @@ struct ggml_threadpool {
     // atomic_int GGML_CACHE_ALIGN n_barrier;
     // atomic_int GGML_CACHE_ALIGN n_barrier_passed;
     // atomic_int current_chunk; // currently processing chunk during Mat_Mul, shared between all the threads.
+    int current_chunk; // currently processing chunk during Mat_Mul, shared between all the threads.
 
     // // these are atomic as an annotation for thread-sanitizer
     // atomic_bool stop;         // Used for stopping the threadpool altogether
@@ -1315,6 +1316,7 @@ struct ggml_threadpool {
     struct ggml_compute_state * workers;   // per thread state
     int          n_threads_max; // number of threads in the pool
     // atomic_int   n_threads_cur; // number of threads used in the current graph
+    int   n_threads_cur; // number of threads used in the current graph
 
     int32_t      prio;        // Scheduling priority
     uint32_t     poll;        // Polling level (0 - no polling)
@@ -7530,10 +7532,11 @@ UseGgmlGemm1:;
 
     // ICPP-PATCH-START
     // no threading
-    // if (ith == 0) {
-    //     // Every thread starts at ith, so the first unprocessed chunk is nth.  This save a bit of coordination right at the start.
-    //     atomic_store_explicit(&params->threadpool->current_chunk, nth, memory_order_relaxed);
-    // }
+    if (ith == 0) {
+        // Every thread starts at ith, so the first unprocessed chunk is nth.  This save a bit of coordination right at the start.
+        // atomic_store_explicit(&params->threadpool->current_chunk, nth, memory_order_relaxed);
+        params->threadpool->current_chunk = nth;
+    }
 
     // ggml_barrier(params->threadpool);
     // ICPP-PATCH-END
@@ -7626,6 +7629,7 @@ UseGgmlGemm2:;
         // ICPP-PATCH-START
         // no threading
         // current_chunk = atomic_fetch_add_explicit(&params->threadpool->current_chunk, 1, memory_order_relaxed);
+        current_chunk += 1;
         // ICPP-PATCH-END
     }
 }
@@ -13479,27 +13483,31 @@ static bool ggml_thread_apply_affinity(const bool * mask) {
 }
 
 static bool ggml_thread_apply_priority(int32_t prio) {
-    struct sched_param p;
-    int32_t policy = SCHED_OTHER;
-    switch (prio) {
-        case GGML_SCHED_PRIO_NORMAL:   policy = SCHED_OTHER; p.sched_priority = 0;  break;
-        case GGML_SCHED_PRIO_MEDIUM:   policy = SCHED_FIFO;  p.sched_priority = 40; break;
-        case GGML_SCHED_PRIO_HIGH:     policy = SCHED_FIFO;  p.sched_priority = 80; break;
-        case GGML_SCHED_PRIO_REALTIME: policy = SCHED_FIFO;  p.sched_priority = 90; break;
-    }
-
-    if (prio == GGML_SCHED_PRIO_NORMAL) {
-        // Keep inherited policy/priority
-        return true;
-    }
-
-    int32_t err = pthread_setschedparam(pthread_self(), policy, &p);
-    if (err != 0) {
-        fprintf(stderr, "warn: failed to set thread priority %d : %s (%d)\n", prio, strerror(err), err);
-        return false;
-    }
-
+    // ICPP-PATCH-START
+    // no threading
     return true;
+    // ICPP-PATCH-END
+    // struct sched_param p;
+    // int32_t policy = SCHED_OTHER;
+    // switch (prio) {
+    //     case GGML_SCHED_PRIO_NORMAL:   policy = SCHED_OTHER; p.sched_priority = 0;  break;
+    //     case GGML_SCHED_PRIO_MEDIUM:   policy = SCHED_FIFO;  p.sched_priority = 40; break;
+    //     case GGML_SCHED_PRIO_HIGH:     policy = SCHED_FIFO;  p.sched_priority = 80; break;
+    //     case GGML_SCHED_PRIO_REALTIME: policy = SCHED_FIFO;  p.sched_priority = 90; break;
+    // }
+
+    // if (prio == GGML_SCHED_PRIO_NORMAL) {
+    //     // Keep inherited policy/priority
+    //     return true;
+    // }
+
+    // int32_t err = pthread_setschedparam(pthread_self(), policy, &p);
+    // if (err != 0) {
+    //     fprintf(stderr, "warn: failed to set thread priority %d : %s (%d)\n", prio, strerror(err), err);
+    //     return false;
+    // }
+
+    // return true;
 }
 
 #elif defined(__gnu_linux__)
@@ -14109,7 +14117,7 @@ static struct ggml_threadpool * ggml_threadpool_new_impl(
         // threadpool->n_graph          = 0;
         // threadpool->n_barrier        = 0;
         // threadpool->n_barrier_passed = 0;
-        // threadpool->current_chunk    = 0;
+        threadpool->current_chunk    = 0;
         // threadpool->stop             = false;
         // threadpool->pause            = tpp->paused;
         // threadpool->abort            = false;
@@ -14193,7 +14201,7 @@ enum ggml_status ggml_graph_compute(struct ggml_cgraph * cgraph, struct ggml_cpl
         // No worker threads should be accessing the parameters below at this stage
         threadpool->cgraph           = cgraph;
         threadpool->cplan            = cplan;
-        // threadpool->current_chunk    = 0;
+        threadpool->current_chunk    = 0;
         // threadpool->abort            = false;
         threadpool->ec               = GGML_STATUS_SUCCESS;
     }
