@@ -225,7 +225,11 @@
 #   define GGML_MAX_NAME        64
 #endif
 
-#define GGML_DEFAULT_N_THREADS  4
+// ICPP-PATCH-START
+// no threading
+// #define GGML_DEFAULT_N_THREADS  4
+#define GGML_DEFAULT_N_THREADS  1
+// ICPP-PATCH-END
 #define GGML_DEFAULT_GRAPH_SIZE 2048
 
 #if UINTPTR_MAX == 0xFFFFFFFF

@@ -9,7 +9,7 @@
 #include "ggml-impl.h"
 #include "ggml-quants.h"
 #include "ggml-cpu-quants.h"
-#include "ggml-threading.h"
+// #include "ggml-threading.h"
 #include "amx/amx.h"
 #include "ggml.h"
 
@@ -175,7 +175,10 @@ static void atomic_thread_fence(memory_order mo) {
     MemoryBarrier();
 }
 #else // clang
-#include <stdatomic.h>
+// ICPP-PATCH-START
+// no thread support in a canister
+// #include <stdatomic.h>
+// ICPP-PATCH-END
 #endif
 
 typedef HANDLE pthread_t;
@@ -206,9 +209,12 @@ static int sched_yield (void) {
 }
 #else
 
-#include <pthread.h>
-#include <stdatomic.h>
-#include <sched.h>
+// ICPP-PATCH-START
+// no thread support in a canister
+// #include <pthread.h>
+// #include <stdatomic.h>
+// #include <sched.h>
+// ICPP-PATCH-END
 #if defined(__FreeBSD__)
 #include <pthread_np.h>
 #endif
@@ -1294,19 +1300,21 @@ struct ggml_threadpool {
     struct ggml_cplan  * cplan;
 
     // synchronization primitives
-    atomic_int n_graph;       // incremented when there is work to be done (i.e each graph)
-    atomic_int GGML_CACHE_ALIGN n_barrier;
-    atomic_int GGML_CACHE_ALIGN n_barrier_passed;
-    atomic_int current_chunk; // currently processing chunk during Mat_Mul, shared between all the threads.
+    // ICPP-PATCH-START
+    // no threading
+    // atomic_int n_graph;       // incremented when there is work to be done (i.e each graph)
+    // atomic_int GGML_CACHE_ALIGN n_barrier;
+    // atomic_int GGML_CACHE_ALIGN n_barrier_passed;
+    // atomic_int current_chunk; // currently processing chunk during Mat_Mul, shared between all the threads.
 
-    // these are atomic as an annotation for thread-sanitizer
-    atomic_bool stop;         // Used for stopping the threadpool altogether
-    atomic_bool pause;        // Used for pausing the threadpool or individual threads
-    atomic_bool abort;        // Used for aborting processing of a graph
+    // // these are atomic as an annotation for thread-sanitizer
+    // atomic_bool stop;         // Used for stopping the threadpool altogether
+    // atomic_bool pause;        // Used for pausing the threadpool or individual threads
+    // atomic_bool abort;        // Used for aborting processing of a graph
 
     struct ggml_compute_state * workers;   // per thread state
     int          n_threads_max; // number of threads in the pool
-    atomic_int   n_threads_cur; // number of threads used in the current graph
+    // atomic_int   n_threads_cur; // number of threads used in the current graph
 
     int32_t      prio;        // Scheduling priority
     uint32_t     poll;        // Polling level (0 - no polling)
@@ -2233,41 +2241,47 @@ struct ggml_state {
 static struct ggml_state g_state = {0};
 
 void ggml_barrier(struct ggml_threadpool * tp) {
-    int n_threads = atomic_load_explicit(&tp->n_threads_cur, memory_order_relaxed);
-    if (n_threads == 1) {
-        return;
-    }
+    // ICPP-PATCH-START
+    // no threading
+    return;  
+    // ICPP-PATCH-END
 
-#ifdef GGML_USE_OPENMP
-    #pragma omp barrier
-#else
-    int n_passed = atomic_load_explicit(&tp->n_barrier_passed, memory_order_relaxed);
+//     int n_threads = atomic_load_explicit(&tp->n_threads_cur, memory_order_relaxed);
 
-    // enter barrier (full seq-cst fence)
-    int n_barrier = atomic_fetch_add_explicit(&tp->n_barrier, 1, memory_order_seq_cst);
+//     if (n_threads == 1) {
+//         return;
+//     }
 
-    if (n_barrier == (n_threads - 1)) {
-        // last thread
-        atomic_store_explicit(&tp->n_barrier, 0, memory_order_relaxed);
+// #ifdef GGML_USE_OPENMP
+//     #pragma omp barrier
+// #else
+//     int n_passed = atomic_load_explicit(&tp->n_barrier_passed, memory_order_relaxed);
 
-        // exit barrier (fill seq-cst fence)
-        atomic_fetch_add_explicit(&tp->n_barrier_passed, 1, memory_order_seq_cst);
-        return;
-    }
+//     // enter barrier (full seq-cst fence)
+//     int n_barrier = atomic_fetch_add_explicit(&tp->n_barrier, 1, memory_order_seq_cst);
 
-    // wait for other threads
-    while (atomic_load_explicit(&tp->n_barrier_passed, memory_order_relaxed) == n_passed) {
-        ggml_thread_cpu_relax();
-    }
+//     if (n_barrier == (n_threads - 1)) {
+//         // last thread
+//         atomic_store_explicit(&tp->n_barrier, 0, memory_order_relaxed);
 
-    // exit barrier (full seq-cst fence)
-    // TSAN doesn't support standalone fence yet, we use a dummy read-modify-write instead
-    #ifdef GGML_TSAN_ENABLED
-    atomic_fetch_add_explicit(&tp->n_barrier_passed, 0, memory_order_seq_cst);
-    #else
-    atomic_thread_fence(memory_order_seq_cst);
-    #endif
-#endif
+//         // exit barrier (fill seq-cst fence)
+//         atomic_fetch_add_explicit(&tp->n_barrier_passed, 1, memory_order_seq_cst);
+//         return;
+//     }
+
+//     // wait for other threads
+//     while (atomic_load_explicit(&tp->n_barrier_passed, memory_order_relaxed) == n_passed) {
+//         ggml_thread_cpu_relax();
+//     }
+
+//     // exit barrier (full seq-cst fence)
+//     // TSAN doesn't support standalone fence yet, we use a dummy read-modify-write instead
+//     #ifdef GGML_TSAN_ENABLED
+//     atomic_fetch_add_explicit(&tp->n_barrier_passed, 0, memory_order_seq_cst);
+//     #else
+//     atomic_thread_fence(memory_order_seq_cst);
+//     #endif
+// #endif
 }
 
 #if defined(__gnu_linux__)
@@ -7514,12 +7528,15 @@ UseGgmlGemm1:;
         }
     }
 
-    if (ith == 0) {
-        // Every thread starts at ith, so the first unprocessed chunk is nth.  This save a bit of coordination right at the start.
-        atomic_store_explicit(&params->threadpool->current_chunk, nth, memory_order_relaxed);
-    }
+    // ICPP-PATCH-START
+    // no threading
+    // if (ith == 0) {
+    //     // Every thread starts at ith, so the first unprocessed chunk is nth.  This save a bit of coordination right at the start.
+    //     atomic_store_explicit(&params->threadpool->current_chunk, nth, memory_order_relaxed);
+    // }
 
-    ggml_barrier(params->threadpool);
+    // ggml_barrier(params->threadpool);
+    // ICPP-PATCH-END
 
 #if GGML_USE_LLAMAFILE
     if (src1->type != vec_dot_type) {
@@ -7606,7 +7623,10 @@ UseGgmlGemm2:;
             break;
         }
 
-        current_chunk = atomic_fetch_add_explicit(&params->threadpool->current_chunk, 1, memory_order_relaxed);
+        // ICPP-PATCH-START
+        // no threading
+        // current_chunk = atomic_fetch_add_explicit(&params->threadpool->current_chunk, 1, memory_order_relaxed);
+        // ICPP-PATCH-END
     }
 }
 
@@ -13582,73 +13602,93 @@ static void ggml_thread_cpumask_next(const bool * global_mask, bool * local_mask
 }
 
 void ggml_threadpool_free(struct ggml_threadpool* threadpool) {
-    if (!threadpool) return;
+    // ICPP-PATCH-START
+    // no threading
+    return;
+    // ICPP-PATCH-END
+//     if (!threadpool) return;
 
-    const int n_threads = threadpool->n_threads_max;
+//     const int n_threads = threadpool->n_threads_max;
 
-#ifndef GGML_USE_OPENMP
-    struct ggml_compute_state* workers = threadpool->workers;
+// #ifndef GGML_USE_OPENMP
+//     struct ggml_compute_state* workers = threadpool->workers;
 
-    ggml_mutex_lock(&threadpool->mutex);
+//     ggml_mutex_lock(&threadpool->mutex);
 
-    threadpool->stop = true;
-    threadpool->pause = false;
+//     threadpool->stop = true;
+//     threadpool->pause = false;
 
-    ggml_cond_broadcast(&threadpool->cond);
-    ggml_mutex_unlock(&threadpool->mutex);
+//     ggml_cond_broadcast(&threadpool->cond);
+//     ggml_mutex_unlock(&threadpool->mutex);
 
-    for (int j = 1; j < n_threads; j++) {
-        int32_t rc = ggml_thread_join(workers[j].thrd, NULL);
-        GGML_ASSERT(rc == GGML_EXIT_SUCCESS || rc == GGML_EXIT_ABORTED);
-        UNUSED(rc);
-    }
+//     for (int j = 1; j < n_threads; j++) {
+//         int32_t rc = ggml_thread_join(workers[j].thrd, NULL);
+//         GGML_ASSERT(rc == GGML_EXIT_SUCCESS || rc == GGML_EXIT_ABORTED);
+//         UNUSED(rc);
+//     }
 
-    ggml_mutex_destroy(&threadpool->mutex);
-    ggml_cond_destroy(&threadpool->cond);
-#endif // GGML_USE_OPENMP
+//     ggml_mutex_destroy(&threadpool->mutex);
+//     ggml_cond_destroy(&threadpool->cond);
+// #endif // GGML_USE_OPENMP
 
-    const size_t workers_size = sizeof(struct ggml_compute_state) * n_threads;
-    ggml_aligned_free(threadpool->workers, workers_size);
-    ggml_aligned_free(threadpool, sizeof(struct ggml_threadpool));
+//     const size_t workers_size = sizeof(struct ggml_compute_state) * n_threads;
+//     ggml_aligned_free(threadpool->workers, workers_size);
+//     ggml_aligned_free(threadpool, sizeof(struct ggml_threadpool));
 }
 
 #ifndef GGML_USE_OPENMP
 // pause/resume must be called under mutex
 static void ggml_threadpool_pause_locked(struct ggml_threadpool * threadpool) {
-    GGML_PRINT_DEBUG("Pausing threadpool\n");
-    threadpool->pause = true;
-    ggml_cond_broadcast(&threadpool->cond);
+    // ICPP-PATCH-START
+    // no threading
+    return;
+    // ICPP-PATCH-END
+    // GGML_PRINT_DEBUG("Pausing threadpool\n");
+    // threadpool->pause = true;
+    // ggml_cond_broadcast(&threadpool->cond);
 }
 
 static void ggml_threadpool_resume_locked(struct ggml_threadpool * threadpool) {
-    GGML_PRINT_DEBUG("Resuming threadpool\n");
-    threadpool->pause = false;
-    ggml_cond_broadcast(&threadpool->cond);
+    // ICPP-PATCH-START
+    // no threading
+    return;
+    // ICPP-PATCH-END
+    // GGML_PRINT_DEBUG("Resuming threadpool\n");
+    // threadpool->pause = false;
+    // ggml_cond_broadcast(&threadpool->cond);
 }
 #endif
 
 void ggml_threadpool_pause(struct ggml_threadpool * threadpool) {
-#ifndef GGML_USE_OPENMP
-    ggml_mutex_lock(&threadpool->mutex);
-    if (!threadpool->pause) {
-       ggml_threadpool_pause_locked(threadpool);
-    }
-    ggml_mutex_unlock(&threadpool->mutex);
-#else
-    UNUSED(threadpool);
-#endif
+    // ICPP-PATCH-START
+    // no threading
+    return;
+    // ICPP-PATCH-END
+// #ifndef GGML_USE_OPENMP
+//     ggml_mutex_lock(&threadpool->mutex);
+//     if (!threadpool->pause) {
+//        ggml_threadpool_pause_locked(threadpool);
+//     }
+//     ggml_mutex_unlock(&threadpool->mutex);
+// #else
+//     UNUSED(threadpool);
+// #endif
 }
 
 void ggml_threadpool_resume(struct ggml_threadpool * threadpool) {
-#ifndef GGML_USE_OPENMP
-    ggml_mutex_lock(&threadpool->mutex);
-    if (threadpool->pause) {
-       ggml_threadpool_resume_locked(threadpool);
-    }
-    ggml_mutex_unlock(&threadpool->mutex);
-#else
-    UNUSED(threadpool);
-#endif
+    // ICPP-PATCH-START
+    // no threading
+    return;
+    // ICPP-PATCH-END
+// #ifndef GGML_USE_OPENMP
+//     ggml_mutex_lock(&threadpool->mutex);
+//     if (threadpool->pause) {
+//        ggml_threadpool_resume_locked(threadpool);
+//     }
+//     ggml_mutex_unlock(&threadpool->mutex);
+// #else
+//     UNUSED(threadpool);
+// #endif
 }
 
 struct ggml_cplan ggml_graph_plan(
@@ -13845,20 +13885,31 @@ static thread_ret_t ggml_graph_compute_thread(void * data) {
 
     struct ggml_compute_params params = {
         /*.ith       =*/ state->ith,
-        /*.nth       =*/ atomic_load_explicit(&tp->n_threads_cur, memory_order_relaxed),
+        // ICPP-PATCH-START
+        // no threading
+        // /*.nth       =*/ atomic_load_explicit(&tp->n_threads_cur, memory_order_relaxed),
+        /*.nth       =*/ 1,
+        // ICPP-PATCH-END
         /*.wsize     =*/ cplan->work_size,
         /*.wdata     =*/ cplan->work_data,
         /*.threadpool=*/ tp,
     };
 
-    for (int node_n = 0; node_n < cgraph->n_nodes && !tp->abort; node_n++) {
+    // ICPP-PATCH-START
+    // no threading
+    // for (int node_n = 0; node_n < cgraph->n_nodes && !tp->abort; node_n++) {
+    for (int node_n = 0; node_n < cgraph->n_nodes; node_n++) {
+    // ICPP-PATCH-END
         struct ggml_tensor * node = cgraph->nodes[node_n];
 
         ggml_compute_forward(&params, node);
 
         if (state->ith == 0 && cplan->abort_callback &&
                 cplan->abort_callback(cplan->abort_callback_data)) {
-            tp->abort = true;
+            // ICPP-PATCH-START
+            // no threading
+            // tp->abort = true;
+            // ICPP-PATCH-END
             tp->ec    = GGML_STATUS_ABORTED;
         }
 
@@ -13872,145 +13923,175 @@ static thread_ret_t ggml_graph_compute_thread(void * data) {
 
 // check if thread is active
 static inline bool ggml_graph_compute_thread_active(struct ggml_compute_state * state) {
-    struct ggml_threadpool * threadpool = state->threadpool;
-    int n_threads = atomic_load_explicit(&threadpool->n_threads_cur, memory_order_relaxed);
-    return (state->ith < n_threads);
+    // ICPP-PATCH-START
+    // no threading
+    return true;
+    // ICPP-PATCH-END
+    // struct ggml_threadpool * threadpool = state->threadpool;
+    // int n_threads = atomic_load_explicit(&threadpool->n_threads_cur, memory_order_relaxed);
+    // return (state->ith < n_threads);
 }
 
 // check if thread is ready to proceed (exit from polling or sleeping)
 static inline bool ggml_graph_compute_thread_ready(struct ggml_compute_state * state) {
-    struct ggml_threadpool * threadpool = state->threadpool;
+    // ICPP-PATCH-START
+    // no threading
+    return true;
+    // ICPP-PATCH-END
+    // struct ggml_threadpool * threadpool = state->threadpool;
 
-    if (state->pending || threadpool->stop || threadpool->pause) { return true; }
+    // if (state->pending || threadpool->stop || threadpool->pause) { return true; }
 
-    // check for new graph/work
-    int new_graph = atomic_load_explicit(&threadpool->n_graph, memory_order_relaxed);
-    if (new_graph != state->last_graph) {
-        state->pending    = ggml_graph_compute_thread_active(state);
-        state->last_graph = new_graph;
-    }
+    // // check for new graph/work
+    // int new_graph = atomic_load_explicit(&threadpool->n_graph, memory_order_relaxed);
+    // if (new_graph != state->last_graph) {
+    //     state->pending    = ggml_graph_compute_thread_active(state);
+    //     state->last_graph = new_graph;
+    // }
 
-    return state->pending;
+    // return state->pending;
 }
 
 // sync thread state after polling
 static inline void ggml_graph_compute_thread_sync(struct ggml_compute_state * state) {
-    // TSAN doesn't support standalone fence yet, we use a dummy read-modify-write instead
-    #ifdef GGML_TSAN_ENABLED
-    atomic_fetch_add_explicit(&state->threadpool->n_graph, 0, memory_order_seq_cst);
-    #else
-    atomic_thread_fence(memory_order_seq_cst);
-    #endif
-    UNUSED(state);
+    // ICPP-PATCH-START
+    // no threading
+    return;
+    // ICPP-PATCH-END
+    // // TSAN doesn't support standalone fence yet, we use a dummy read-modify-write instead
+    // #ifdef GGML_TSAN_ENABLED
+    // atomic_fetch_add_explicit(&state->threadpool->n_graph, 0, memory_order_seq_cst);
+    // #else
+    // atomic_thread_fence(memory_order_seq_cst);
+    // #endif
+    // UNUSED(state);
 }
 
 static inline bool ggml_graph_compute_poll_for_work(struct ggml_compute_state * state) {
-    struct ggml_threadpool * threadpool = state->threadpool;
+    // ICPP-PATCH-START
+    // no threading
+    return true;
+    // ICPP-PATCH-END
 
-    // Skip polling for unused threads
-    if (!ggml_graph_compute_thread_active(state)) {
-        return state->pending;
-    }
+    // struct ggml_threadpool * threadpool = state->threadpool;
 
-    // This seems to make 0 ... 100 a decent range for polling level across modern processors.
-    // Perhaps, we can adjust it dynamically based on load and things.
-    const uint64_t n_rounds = 1024UL * 128 * threadpool->poll;
+    // // Skip polling for unused threads
+    // if (!ggml_graph_compute_thread_active(state)) {
+    //     return state->pending;
+    // }
 
-    for (uint64_t i=0; !ggml_graph_compute_thread_ready(state) && i < n_rounds; i++) {
-        // No new work. Keep polling.
-        ggml_thread_cpu_relax();
-    }
+    // // This seems to make 0 ... 100 a decent range for polling level across modern processors.
+    // // Perhaps, we can adjust it dynamically based on load and things.
+    // const uint64_t n_rounds = 1024UL * 128 * threadpool->poll;
 
-    return state->pending;
+    // for (uint64_t i=0; !ggml_graph_compute_thread_ready(state) && i < n_rounds; i++) {
+    //     // No new work. Keep polling.
+    //     ggml_thread_cpu_relax();
+    // }
+
+    // return state->pending;
 }
 
 static inline bool ggml_graph_compute_check_for_work(struct ggml_compute_state * state) {
-    struct ggml_threadpool * threadpool = state->threadpool;
+    // ICPP-PATCH-START
+    // no threading
+    return true;
+    // ICPP-PATCH-END
+    // struct ggml_threadpool * threadpool = state->threadpool;
 
-    if (ggml_graph_compute_poll_for_work(state)) {
-        ggml_graph_compute_thread_sync(state);
-        return state->pending;
-    }
+    // if (ggml_graph_compute_poll_for_work(state)) {
+    //     ggml_graph_compute_thread_sync(state);
+    //     return state->pending;
+    // }
 
-    ggml_mutex_lock_shared(&threadpool->mutex);
-    while (!ggml_graph_compute_thread_ready(state)) {
-        // No new work. Wait for the signal.
-        GGML_PRINT_DEBUG("thread #%d waiting for work (sleeping)\n", state->ith);
-        ggml_cond_wait(&threadpool->cond, &threadpool->mutex);
-    }
-    ggml_mutex_unlock_shared(&threadpool->mutex);
+    // ggml_mutex_lock_shared(&threadpool->mutex);
+    // while (!ggml_graph_compute_thread_ready(state)) {
+    //     // No new work. Wait for the signal.
+    //     GGML_PRINT_DEBUG("thread #%d waiting for work (sleeping)\n", state->ith);
+    //     ggml_cond_wait(&threadpool->cond, &threadpool->mutex);
+    // }
+    // ggml_mutex_unlock_shared(&threadpool->mutex);
 
-    return state->pending;
+    // return state->pending;
 }
 
 static thread_ret_t ggml_graph_compute_secondary_thread(void* data) {
-    struct ggml_compute_state * state = (struct ggml_compute_state *) data;
-    struct ggml_threadpool * threadpool = state->threadpool;
-
-    ggml_thread_apply_priority(threadpool->prio);
-    if (ggml_thread_cpumask_is_valid(state->cpumask)) {
-        ggml_thread_apply_affinity(state->cpumask);
-    }
-
-    while (true) {
-        // Check if we need to sleep
-        while (threadpool->pause) {
-            GGML_PRINT_DEBUG("thread #%d inside pause loop\n", state->ith);
-            ggml_mutex_lock_shared(&threadpool->mutex);
-            if (threadpool->pause) {
-                ggml_cond_wait(&threadpool->cond, &threadpool->mutex);
-            }
-            GGML_PRINT_DEBUG("thread #%d resuming after wait\n", state->ith);
-            ggml_mutex_unlock_shared(&threadpool->mutex);
-        }
-
-        // This needs to be checked for after the cond_wait
-        if (threadpool->stop) break;
-
-        // Check if there is new work
-        // The main thread is the only one that can dispatch new work
-
-        ggml_graph_compute_check_for_work(state);
-        if (state->pending) {
-            state->pending = false;
-
-            ggml_graph_compute_thread(state);
-        }
-    }
-
+    // ICPP-PATCH-START
+    // no threading
     return (thread_ret_t) 0;
+    // ICPP-PATCH-END
+
+    // struct ggml_compute_state * state = (struct ggml_compute_state *) data;
+    // struct ggml_threadpool * threadpool = state->threadpool;
+
+    // ggml_thread_apply_priority(threadpool->prio);
+    // if (ggml_thread_cpumask_is_valid(state->cpumask)) {
+    //     ggml_thread_apply_affinity(state->cpumask);
+    // }
+
+    // while (true) {
+    //     // Check if we need to sleep
+    //     while (threadpool->pause) {
+    //         GGML_PRINT_DEBUG("thread #%d inside pause loop\n", state->ith);
+    //         ggml_mutex_lock_shared(&threadpool->mutex);
+    //         if (threadpool->pause) {
+    //             ggml_cond_wait(&threadpool->cond, &threadpool->mutex);
+    //         }
+    //         GGML_PRINT_DEBUG("thread #%d resuming after wait\n", state->ith);
+    //         ggml_mutex_unlock_shared(&threadpool->mutex);
+    //     }
+
+    //     // This needs to be checked for after the cond_wait
+    //     if (threadpool->stop) break;
+
+    //     // Check if there is new work
+    //     // The main thread is the only one that can dispatch new work
+
+    //     ggml_graph_compute_check_for_work(state);
+    //     if (state->pending) {
+    //         state->pending = false;
+
+    //         ggml_graph_compute_thread(state);
+    //     }
+    // }
+
+    // return (thread_ret_t) 0;
 }
 
 // Start processing new graph
 static void ggml_graph_compute_kickoff(struct ggml_threadpool * threadpool, int n_threads)
 {
-    // Always take the mutex here because the worker threads are doing hybrid poll/wait
+    // ICPP-PATCH-START
+    // no threading
+    return; // noop
+    // ICPP-PATCH-END
+    // // Always take the mutex here because the worker threads are doing hybrid poll/wait
 
-    ggml_mutex_lock(&threadpool->mutex);
+    // ggml_mutex_lock(&threadpool->mutex);
 
-    GGML_PRINT_DEBUG("threadpool: n_threads_cur %d n_threads %d\n", threadpool->n_threads_cur, n_threads);
+    // GGML_PRINT_DEBUG("threadpool: n_threads_cur %d n_threads %d\n", threadpool->n_threads_cur, n_threads);
 
-    // Update the number of active threads
-    atomic_store_explicit(&threadpool->n_threads_cur, n_threads, memory_order_relaxed);
+    // // Update the number of active threads
+    // atomic_store_explicit(&threadpool->n_threads_cur, n_threads, memory_order_relaxed);
 
-    // Indicate the graph is ready to be processed
-    // We need the full seq-cst fence here because of the polling threads (used in thread_sync)
-    atomic_fetch_add_explicit(&threadpool->n_graph, 1, memory_order_seq_cst);
+    // // Indicate the graph is ready to be processed
+    // // We need the full seq-cst fence here because of the polling threads (used in thread_sync)
+    // atomic_fetch_add_explicit(&threadpool->n_graph, 1, memory_order_seq_cst);
 
-    if (threadpool->pause) {
-       // Update main thread prio and affinity to match the threadpool settings
-       ggml_thread_apply_priority(threadpool->prio);
-       if (ggml_thread_cpumask_is_valid(threadpool->workers[0].cpumask)) {
-           ggml_thread_apply_affinity(threadpool->workers[0].cpumask);
-       }
+    // if (threadpool->pause) {
+    //    // Update main thread prio and affinity to match the threadpool settings
+    //    ggml_thread_apply_priority(threadpool->prio);
+    //    if (ggml_thread_cpumask_is_valid(threadpool->workers[0].cpumask)) {
+    //        ggml_thread_apply_affinity(threadpool->workers[0].cpumask);
+    //    }
 
-       // resume does cond broadcast
-       ggml_threadpool_resume_locked(threadpool);
-    } else {
-       ggml_cond_broadcast(&threadpool->cond);
-    }
+    //    // resume does cond broadcast
+    //    ggml_threadpool_resume_locked(threadpool);
+    // } else {
+    //    ggml_cond_broadcast(&threadpool->cond);
+    // }
 
-    ggml_mutex_unlock(&threadpool->mutex);
+    // ggml_mutex_unlock(&threadpool->mutex);
 }
 
 #endif // GGML_USE_OPENMP
@@ -14025,16 +14106,16 @@ static struct ggml_threadpool * ggml_threadpool_new_impl(
     {
         threadpool->cgraph           = cgraph;
         threadpool->cplan            = cplan;
-        threadpool->n_graph          = 0;
-        threadpool->n_barrier        = 0;
-        threadpool->n_barrier_passed = 0;
-        threadpool->current_chunk    = 0;
-        threadpool->stop             = false;
-        threadpool->pause            = tpp->paused;
-        threadpool->abort            = false;
+        // threadpool->n_graph          = 0;
+        // threadpool->n_barrier        = 0;
+        // threadpool->n_barrier_passed = 0;
+        // threadpool->current_chunk    = 0;
+        // threadpool->stop             = false;
+        // threadpool->pause            = tpp->paused;
+        // threadpool->abort            = false;
         threadpool->workers          = NULL;
         threadpool->n_threads_max    = tpp->n_threads;
-        threadpool->n_threads_cur    = tpp->n_threads;
+        // threadpool->n_threads_cur    = tpp->n_threads;
         threadpool->poll             = tpp->poll;
         threadpool->prio             = tpp->prio;
         threadpool->ec               = GGML_STATUS_SUCCESS;
@@ -14052,32 +14133,35 @@ static struct ggml_threadpool * ggml_threadpool_new_impl(
 
     threadpool->workers = workers;
 
-#ifndef GGML_USE_OPENMP
-    ggml_mutex_init(&threadpool->mutex);
-    ggml_cond_init(&threadpool->cond);
+    // ICPP-PATCH-START
+    // no threading
+// #ifndef GGML_USE_OPENMP
+//     ggml_mutex_init(&threadpool->mutex);
+//     ggml_cond_init(&threadpool->cond);
 
-    // Spin the threads for all workers, and update CPU placements.
-    // Place the main thread last (towards the higher numbered CPU cores).
+//     // Spin the threads for all workers, and update CPU placements.
+//     // Place the main thread last (towards the higher numbered CPU cores).
 
-    int32_t cpumask_iter = 0;
+//     int32_t cpumask_iter = 0;
 
-    for (int j = 1; j < tpp->n_threads; j++) {
-        ggml_thread_cpumask_next(tpp->cpumask, workers[j].cpumask, tpp->strict_cpu, &cpumask_iter);
+//     for (int j = 1; j < tpp->n_threads; j++) {
+//         ggml_thread_cpumask_next(tpp->cpumask, workers[j].cpumask, tpp->strict_cpu, &cpumask_iter);
 
-        int32_t rc = ggml_thread_create(&workers[j].thrd, NULL, ggml_graph_compute_secondary_thread, &workers[j]);
-        GGML_ASSERT(rc == 0);
-    }
+//         int32_t rc = ggml_thread_create(&workers[j].thrd, NULL, ggml_graph_compute_secondary_thread, &workers[j]);
+//         GGML_ASSERT(rc == 0);
+//     }
 
-    ggml_thread_cpumask_next(tpp->cpumask, workers[0].cpumask, tpp->strict_cpu, &cpumask_iter);
+//     ggml_thread_cpumask_next(tpp->cpumask, workers[0].cpumask, tpp->strict_cpu, &cpumask_iter);
 
-    if (!threadpool->pause) {
-        // Update main thread prio and affinity at the start, otherwise we'll do it in resume
-        ggml_thread_apply_priority(threadpool->prio);
-        if (ggml_thread_cpumask_is_valid(threadpool->workers[0].cpumask)) {
-            ggml_thread_apply_affinity(threadpool->workers[0].cpumask);
-        }
-    }
-#endif // GGML_USE_OPENMP
+//     if (!threadpool->pause) {
+//         // Update main thread prio and affinity at the start, otherwise we'll do it in resume
+//         ggml_thread_apply_priority(threadpool->prio);
+//         if (ggml_thread_cpumask_is_valid(threadpool->workers[0].cpumask)) {
+//             ggml_thread_apply_affinity(threadpool->workers[0].cpumask);
+//         }
+//     }
+// #endif // GGML_USE_OPENMP
+    // ICPP-PATCH-END
 
     return threadpool;
 }
@@ -14109,8 +14193,8 @@ enum ggml_status ggml_graph_compute(struct ggml_cgraph * cgraph, struct ggml_cpl
         // No worker threads should be accessing the parameters below at this stage
         threadpool->cgraph           = cgraph;
         threadpool->cplan            = cplan;
-        threadpool->current_chunk    = 0;
-        threadpool->abort            = false;
+        // threadpool->current_chunk    = 0;
+        // threadpool->abort            = false;
         threadpool->ec               = GGML_STATUS_SUCCESS;
     }
 
@@ -14357,7 +14441,10 @@ void ggml_cpu_init(void) {
         ggml_free(ctx);
     }
 
-    ggml_critical_section_start();
+    // ICPP-PATCH-START
+    // no threading
+    // ggml_critical_section_start();
+    // ICPP-PATCH-END
 
     static bool is_first_call = true;
 
@@ -14388,5 +14475,8 @@ void ggml_cpu_init(void) {
         is_first_call = false;
     }
 
-    ggml_critical_section_end();
+    // ICPP-PATCH-START
+    // no threading
+    // ggml_critical_section_end();
+    // ICPP-PATCH-END
 }
