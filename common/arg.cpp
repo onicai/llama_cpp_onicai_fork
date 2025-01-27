@@ -516,26 +516,29 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
             params.use_color = true;
         }
     ).set_examples({LLAMA_EXAMPLE_MAIN, LLAMA_EXAMPLE_INFILL, LLAMA_EXAMPLE_SPECULATIVE, LLAMA_EXAMPLE_LOOKUP}));
-    add_opt(common_arg(
-        {"-t", "--threads"}, "N",
-        string_format("number of threads to use during generation (default: %d)", params.cpuparams.n_threads),
-        [](common_params & params, int value) {
-            params.cpuparams.n_threads = value;
-            if (params.cpuparams.n_threads <= 0) {
-                params.cpuparams.n_threads = std::thread::hardware_concurrency();
-            }
-        }
-    ).set_env("LLAMA_ARG_THREADS"));
-    add_opt(common_arg(
-        {"-tb", "--threads-batch"}, "N",
-        "number of threads to use during batch and prompt processing (default: same as --threads)",
-        [](common_params & params, int value) {
-            params.cpuparams_batch.n_threads = value;
-            if (params.cpuparams_batch.n_threads <= 0) {
-                params.cpuparams_batch.n_threads = std::thread::hardware_concurrency();
-            }
-        }
-    ));
+    // ICPP-PATCH-START
+    // no threading support
+    // add_opt(common_arg(
+    //     {"-t", "--threads"}, "N",
+    //     string_format("number of threads to use during generation (default: %d)", params.cpuparams.n_threads),
+    //     [](common_params & params, int value) {
+    //         params.cpuparams.n_threads = value;
+    //         if (params.cpuparams.n_threads <= 0) {
+    //             params.cpuparams.n_threads = std::thread::hardware_concurrency();
+    //         }
+    //     }
+    // ).set_env("LLAMA_ARG_THREADS"));
+    // add_opt(common_arg(
+    //     {"-tb", "--threads-batch"}, "N",
+    //     "number of threads to use during batch and prompt processing (default: same as --threads)",
+    //     [](common_params & params, int value) {
+    //         params.cpuparams_batch.n_threads = value;
+    //         if (params.cpuparams_batch.n_threads <= 0) {
+    //             params.cpuparams_batch.n_threads = std::thread::hardware_concurrency();
+    //         }
+    //     }
+    // ));
+    // ICPP-PATCH-END
     add_opt(common_arg(
         {"-C", "--cpu-mask"}, "M",
         "CPU affinity mask: arbitrarily long hex. Complements cpu-range (default: \"\")",
@@ -2114,26 +2117,29 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
     ).set_env("LLAMA_LOG_TIMESTAMPS"));
 
     // speculative parameters
-    add_opt(common_arg(
-        {"-td", "--threads-draft"}, "N",
-        "number of threads to use during generation (default: same as --threads)",
-        [](common_params & params, int value) {
-            params.speculative.cpuparams.n_threads = value;
-            if (params.speculative.cpuparams.n_threads <= 0) {
-                params.speculative.cpuparams.n_threads = std::thread::hardware_concurrency();
-            }
-        }
-    ).set_examples({LLAMA_EXAMPLE_SPECULATIVE}));
-    add_opt(common_arg(
-        {"-tbd", "--threads-batch-draft"}, "N",
-        "number of threads to use during batch and prompt processing (default: same as --threads-draft)",
-        [](common_params & params, int value) {
-            params.speculative.cpuparams_batch.n_threads = value;
-            if (params.speculative.cpuparams_batch.n_threads <= 0) {
-                params.speculative.cpuparams_batch.n_threads = std::thread::hardware_concurrency();
-            }
-        }
-    ).set_examples({LLAMA_EXAMPLE_SPECULATIVE}));
+    // ICPP-PATCH-START
+    // no threading support
+    // add_opt(common_arg(
+    //     {"-td", "--threads-draft"}, "N",
+    //     "number of threads to use during generation (default: same as --threads)",
+    //     [](common_params & params, int value) {
+    //         params.speculative.cpuparams.n_threads = value;
+    //         if (params.speculative.cpuparams.n_threads <= 0) {
+    //             params.speculative.cpuparams.n_threads = std::thread::hardware_concurrency();
+    //         }
+    //     }
+    // ).set_examples({LLAMA_EXAMPLE_SPECULATIVE}));
+    // add_opt(common_arg(
+    //     {"-tbd", "--threads-batch-draft"}, "N",
+    //     "number of threads to use during batch and prompt processing (default: same as --threads-draft)",
+    //     [](common_params & params, int value) {
+    //         params.speculative.cpuparams_batch.n_threads = value;
+    //         if (params.speculative.cpuparams_batch.n_threads <= 0) {
+    //             params.speculative.cpuparams_batch.n_threads = std::thread::hardware_concurrency();
+    //         }
+    //     }
+    // ).set_examples({LLAMA_EXAMPLE_SPECULATIVE}));
+    // ICPP-PATCH-END
     add_opt(common_arg(
         {"-Cd", "--cpu-mask-draft"}, "M",
         "Draft model CPU affinity mask. Complements cpu-range-draft (default: same as --cpu-mask)",

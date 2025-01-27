@@ -241,56 +241,59 @@ int32_t cpu_get_num_math() {
     return 1;
 }
 
-// Helper for setting process priority
+// ICPP-PATCH-START
+// Not supported in a canister
+// // Helper for setting process priority
 
-#if defined(_WIN32)
+// #if defined(_WIN32)
 
-bool set_process_priority(enum ggml_sched_priority prio) {
-    if (prio == GGML_SCHED_PRIO_NORMAL) {
-        return true;
-    }
+// bool set_process_priority(enum ggml_sched_priority prio) {
+//     if (prio == GGML_SCHED_PRIO_NORMAL) {
+//         return true;
+//     }
 
-    DWORD p = NORMAL_PRIORITY_CLASS;
-    switch (prio) {
-        case GGML_SCHED_PRIO_NORMAL:   p = NORMAL_PRIORITY_CLASS;       break;
-        case GGML_SCHED_PRIO_MEDIUM:   p = ABOVE_NORMAL_PRIORITY_CLASS; break;
-        case GGML_SCHED_PRIO_HIGH:     p = HIGH_PRIORITY_CLASS;         break;
-        case GGML_SCHED_PRIO_REALTIME: p = REALTIME_PRIORITY_CLASS;     break;
-    }
+//     DWORD p = NORMAL_PRIORITY_CLASS;
+//     switch (prio) {
+//         case GGML_SCHED_PRIO_NORMAL:   p = NORMAL_PRIORITY_CLASS;       break;
+//         case GGML_SCHED_PRIO_MEDIUM:   p = ABOVE_NORMAL_PRIORITY_CLASS; break;
+//         case GGML_SCHED_PRIO_HIGH:     p = HIGH_PRIORITY_CLASS;         break;
+//         case GGML_SCHED_PRIO_REALTIME: p = REALTIME_PRIORITY_CLASS;     break;
+//     }
 
-    if (!SetPriorityClass(GetCurrentProcess(), p)) {
-        LOG_WRN("failed to set process priority class %d : (%d)\n", prio, (int) GetLastError());
-        return false;
-    }
+//     if (!SetPriorityClass(GetCurrentProcess(), p)) {
+//         LOG_WRN("failed to set process priority class %d : (%d)\n", prio, (int) GetLastError());
+//         return false;
+//     }
 
-    return true;
-}
+//     return true;
+// }
 
-#else // MacOS and POSIX
-#include <sys/types.h>
-#include <sys/resource.h>
+// #else // MacOS and POSIX
+// #include <sys/types.h>
+// #include <sys/resource.h>
 
-bool set_process_priority(enum ggml_sched_priority prio) {
-    if (prio == GGML_SCHED_PRIO_NORMAL) {
-        return true;
-    }
+// bool set_process_priority(enum ggml_sched_priority prio) {
+//     if (prio == GGML_SCHED_PRIO_NORMAL) {
+//         return true;
+//     }
 
-    int p = 0;
-    switch (prio) {
-        case GGML_SCHED_PRIO_NORMAL:   p =  0;  break;
-        case GGML_SCHED_PRIO_MEDIUM:   p = -5;  break;
-        case GGML_SCHED_PRIO_HIGH:     p = -10; break;
-        case GGML_SCHED_PRIO_REALTIME: p = -20; break;
-    }
+//     int p = 0;
+//     switch (prio) {
+//         case GGML_SCHED_PRIO_NORMAL:   p =  0;  break;
+//         case GGML_SCHED_PRIO_MEDIUM:   p = -5;  break;
+//         case GGML_SCHED_PRIO_HIGH:     p = -10; break;
+//         case GGML_SCHED_PRIO_REALTIME: p = -20; break;
+//     }
 
-    if (!setpriority(PRIO_PROCESS, 0, p)) {
-        LOG_WRN("failed to set process priority %d : %s (%d)\n", prio, strerror(errno), errno);
-        return false;
-    }
-    return true;
-}
+//     if (!setpriority(PRIO_PROCESS, 0, p)) {
+//         LOG_WRN("failed to set process priority %d : %s (%d)\n", prio, strerror(errno), errno);
+//         return false;
+//     }
+//     return true;
+// }
 
-#endif
+// #endif
+// ICPP-PATCH-END
 
 //
 // CLI argument parsing

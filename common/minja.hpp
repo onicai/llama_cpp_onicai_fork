@@ -62,7 +62,7 @@ private:
 
   /* Python-style string repr */
   static void dump_string(const json & primitive, std::ostringstream & out, char string_quote = '\'') {
-    if (!primitive.is_string()) throw std::runtime_error("Value is not a string: " + primitive.dump());
+    if (!primitive.is_string()) IC_API::trap("Value is not a string: " + primitive.dump());
     auto s = primitive.dump();
     if (string_quote == '"' || s.find('\'') != std::string::npos) {
       out << s;
@@ -123,7 +123,7 @@ private:
       print_indent(level);
       out << "}";
     } else if (callable_) {
-      throw std::runtime_error("Cannot dump callable to JSON");
+      IC_API::trap("Cannot dump callable to JSON");
     } else if (is_boolean() && !to_json) {
       out << (this->to_bool() ? "True" : "False");
     } else if (is_string() && !to_json) {
@@ -161,7 +161,7 @@ public:
   }
 
   std::vector<Value> keys() {
-    if (!object_) throw std::runtime_error("Value is not an object: " + dump());
+    if (!object_) IC_API::trap("Value is not an object: " + dump());
     std::vector<Value> res;
     for (const auto& item : *object_) {
       res.push_back(item.first);
@@ -173,7 +173,7 @@ public:
     if (is_object()) return object_->size();
     if (is_array()) return array_->size();
     if (is_string()) return primitive_.get<std::string>().length();
-    throw std::runtime_error("Value is not an array or object: " + dump());
+    IC_API::trap("Value is not an array or object: " + dump());
   }
 
   static Value array(const std::vector<Value> values = {}) {
@@ -192,28 +192,28 @@ public:
 
   void insert(size_t index, const Value& v) {
     if (!array_)
-      throw std::runtime_error("Value is not an array: " + dump());
+      IC_API::trap("Value is not an array: " + dump());
     array_->insert(array_->begin() + index, v);
   }
   void push_back(const Value& v) {
     if (!array_)
-      throw std::runtime_error("Value is not an array: " + dump());
+      IC_API::trap("Value is not an array: " + dump());
     array_->push_back(v);
   }
   Value pop(const Value& index) {
     if (is_array()) {
       if (array_->empty())
-        throw std::runtime_error("pop from empty list");
+        IC_API::trap("pop from empty list");
       if (index.is_null()) {
         auto ret = array_->back();
         array_->pop_back();
         return ret;
       } else if (!index.is_number_integer()) {
-        throw std::runtime_error("pop index must be an integer: " + index.dump());
+        IC_API::trap("pop index must be an integer: " + index.dump());
       } else {
         auto i = index.get<int>();
         if (i < 0 || i >= static_cast<int>(array_->size()))
-          throw std::runtime_error("pop index out of range: " + index.dump());
+          IC_API::trap("pop index out of range: " + index.dump());
         auto it = array_->begin() + (i < 0 ? array_->size() + i : i);
         auto ret = *it;
         array_->erase(it);
@@ -221,15 +221,15 @@ public:
       }
     } else if (is_object()) {
       if (!index.is_hashable())
-        throw std::runtime_error("Unashable type: " + index.dump());
+        IC_API::trap("Unashable type: " + index.dump());
       auto it = object_->find(index.primitive_);
       if (it == object_->end())
-        throw std::runtime_error("Key not found: " + index.dump());
+        IC_API::trap("Key not found: " + index.dump());
       auto ret = it->second;
       object_->erase(it);
       return ret;
     } else {
-      throw std::runtime_error("Value is not an array or object: " + dump());
+      IC_API::trap("Value is not an array or object: " + dump());
     }
   }
   Value get(const Value& key) {
@@ -240,7 +240,7 @@ public:
       auto index = key.get<int>();
       return array_->at(index < 0 ? array_->size() + index : index);
     } else if (object_) {
-      if (!key.is_hashable()) throw std::runtime_error("Unashable type: " + dump());
+      if (!key.is_hashable()) IC_API::trap("Unashable type: " + dump());
       auto it = object_->find(key.primitive_);
       if (it == object_->end()) return Value();
       return it->second;
@@ -248,12 +248,12 @@ public:
     return Value();
   }
   void set(const Value& key, const Value& value) {
-    if (!object_) throw std::runtime_error("Value is not an object: " + dump());
-    if (!key.is_hashable()) throw std::runtime_error("Unashable type: " + dump());
+    if (!object_) IC_API::trap("Value is not an object: " + dump());
+    if (!key.is_hashable()) IC_API::trap("Unashable type: " + dump());
     (*object_)[key.primitive_] = value;
   }
   Value call(const std::shared_ptr<Context> & context, ArgumentsValue & args) const {
-    if (!callable_) throw std::runtime_error("Value is not callable: " + dump());
+    if (!callable_) IC_API::trap("Value is not callable: " + dump());
     return (*callable_)(context, args);
   }
 
@@ -273,7 +273,7 @@ public:
 
   bool empty() const {
     if (is_null())
-      throw std::runtime_error("Undefined value or reference");
+      IC_API::trap("Undefined value or reference");
     if (is_string()) return primitive_.empty();
     if (is_array()) return array_->empty();
     if (is_object()) return object_->empty();
@@ -282,7 +282,7 @@ public:
 
   void for_each(const std::function<void(Value &)> & callback) const {
     if (is_null())
-      throw std::runtime_error("Undefined value or reference");
+      IC_API::trap("Undefined value or reference");
     if (array_) {
       for (auto& item : *array_) {
         callback(item);
@@ -298,7 +298,7 @@ public:
         callback(val);
       }
     } else {
-      throw std::runtime_error("Value is not iterable: " + dump());
+      IC_API::trap("Value is not iterable: " + dump());
     }
   }
 
@@ -316,30 +316,30 @@ public:
     if (is_boolean()) return get<bool>() ? 1 : 0;
     if (is_number()) return static_cast<int64_t>(get<double>());
     if (is_string()) {
-      try {
+      // try {
         return std::stol(get<std::string>());
-      } catch (const std::exception &) {
-        return 0;
-      }
+      // } catch (const std::exception &) {
+      //   return 0;
+      // }
     }
     return 0;
   }
 
   bool operator<(const Value & other) const {
     if (is_null())
-      throw std::runtime_error("Undefined value or reference");
+      IC_API::trap("Undefined value or reference");
     if (is_number() && other.is_number()) return get<double>() < other.get<double>();
     if (is_string() && other.is_string()) return get<std::string>() < other.get<std::string>();
-    throw std::runtime_error("Cannot compare values: " + dump() + " < " + other.dump());
+    IC_API::trap("Cannot compare values: " + dump() + " < " + other.dump());
   }
   bool operator>=(const Value & other) const { return !(*this < other); }
 
   bool operator>(const Value & other) const {
     if (is_null())
-      throw std::runtime_error("Undefined value or reference");
+      IC_API::trap("Undefined value or reference");
     if (is_number() && other.is_number()) return get<double>() > other.get<double>();
     if (is_string() && other.is_string()) return get<std::string>() > other.get<std::string>();
-    throw std::runtime_error("Cannot compare values: " + dump() + " > " + other.dump());
+    IC_API::trap("Cannot compare values: " + dump() + " > " + other.dump());
   }
   bool operator<=(const Value & other) const { return !(*this > other); }
 
@@ -374,50 +374,50 @@ public:
     } else if (object_) {
       return object_->find(key) != object_->end();
     } else {
-      throw std::runtime_error("contains can only be called on arrays and objects: " + dump());
+      IC_API::trap("contains can only be called on arrays and objects: " + dump());
     }
   }
   bool contains(const Value & value) const {
     if (is_null())
-      throw std::runtime_error("Undefined value or reference");
+      IC_API::trap("Undefined value or reference");
     if (array_) {
       for (const auto& item : *array_) {
         if (item.to_bool() && item == value) return true;
       }
       return false;
     } else if (object_) {
-      if (!value.is_hashable()) throw std::runtime_error("Unashable type: " + value.dump());
+      if (!value.is_hashable()) IC_API::trap("Unashable type: " + value.dump());
       return object_->find(value.primitive_) != object_->end();
     } else {
-      throw std::runtime_error("contains can only be called on arrays and objects: " + dump());
+      IC_API::trap("contains can only be called on arrays and objects: " + dump());
     }
   }
   void erase(size_t index) {
-    if (!array_) throw std::runtime_error("Value is not an array: " + dump());
+    if (!array_) IC_API::trap("Value is not an array: " + dump());
     array_->erase(array_->begin() + index);
   }
   void erase(const std::string & key) {
-    if (!object_) throw std::runtime_error("Value is not an object: " + dump());
+    if (!object_) IC_API::trap("Value is not an object: " + dump());
     object_->erase(key);
   }
   const Value& at(const Value & index) const {
     return const_cast<Value*>(this)->at(index);
   }
   Value& at(const Value & index) {
-    if (!index.is_hashable()) throw std::runtime_error("Unashable type: " + dump());
+    if (!index.is_hashable()) IC_API::trap("Unashable type: " + dump());
     if (is_array()) return array_->at(index.get<int>());
     if (is_object()) return object_->at(index.primitive_);
-    throw std::runtime_error("Value is not an array or object: " + dump());
+    IC_API::trap("Value is not an array or object: " + dump());
   }
   const Value& at(size_t index) const {
     return const_cast<Value*>(this)->at(index);
   }
   Value& at(size_t index) {
     if (is_null())
-      throw std::runtime_error("Undefined value or reference");
+      IC_API::trap("Undefined value or reference");
     if (is_array()) return array_->at(index);
     if (is_object()) return object_->at(index);
-    throw std::runtime_error("Value is not an array or object: " + dump());
+    IC_API::trap("Value is not an array or object: " + dump());
   }
 
   template <typename T>
@@ -429,7 +429,7 @@ public:
   template <typename T>
   T get() const {
     if (is_primitive()) return primitive_.get<T>();
-    throw std::runtime_error("get<T> not defined for this value type: " + dump());
+    IC_API::trap("get<T> not defined for this value type: " + dump());
   }
 
   std::string dump(int indent=-1, bool to_json=false) const {
@@ -522,7 +522,7 @@ struct ArgumentsValue {
     if (args.size() < pos_count.first || args.size() > pos_count.second || kwargs.size() < kw_count.first || kwargs.size() > kw_count.second) {
       std::ostringstream out;
       out << method_name << " must have between " << pos_count.first << " and " << pos_count.second << " positional arguments and between " << kw_count.first << " and " << kw_count.second << " keyword arguments";
-      throw std::runtime_error(out.str());
+      IC_API::trap(out.str());
     }
   }
 };
@@ -546,7 +546,7 @@ inline json Value::get<json>() const {
       } else if (key.is_primitive()) {
         res[key.dump()] = value.get<json>();
       } else {
-        throw std::runtime_error("Invalid key type for conversion to JSON: " + key.dump());
+        IC_API::trap("Invalid key type for conversion to JSON: " + key.dump());
       }
     }
     if (is_callable()) {
@@ -554,7 +554,7 @@ inline json Value::get<json>() const {
     }
     return res;
   }
-  throw std::runtime_error("get<json> not defined for this value type: " + dump());
+  IC_API::trap("get<json> not defined for this value type: " + dump());
 }
 
 } // namespace minja
@@ -564,7 +564,7 @@ namespace std {
   struct hash<minja::Value> {
     size_t operator()(const minja::Value & v) const {
       if (!v.is_hashable())
-        throw std::runtime_error("Unsupported type for hashing: " + v.dump());
+        IC_API::trap("Unsupported type for hashing: " + v.dump());
       return std::hash<json>()(v.get<json>());
     }
   };
@@ -603,7 +603,7 @@ class Context : public std::enable_shared_from_this<Context> {
     std::shared_ptr<Context> parent_;
   public:
     Context(Value && values, const std::shared_ptr<Context> & parent = nullptr) : values_(std::move(values)), parent_(parent) {
-        if (!values_.is_object()) throw std::runtime_error("Context values must be an object: " + values_.dump());
+        if (!values_.is_object()) IC_API::trap("Context values must be an object: " + values_.dump());
     }
     virtual ~Context() {}
 
@@ -621,7 +621,7 @@ class Context : public std::enable_shared_from_this<Context> {
     virtual Value & at(const Value & key) {
         if (values_.contains(key)) return values_.at(key);
         if (parent_) return parent_->at(key);
-        throw std::runtime_error("Undefined variable: " + key.dump());
+        IC_API::trap("Undefined variable: " + key.dump());
     }
     virtual bool contains(const Value & key) {
         if (values_.contains(key)) return true;
@@ -650,14 +650,14 @@ public:
     virtual ~Expression() = default;
 
     Value evaluate(const std::shared_ptr<Context> & context) const {
-        try {
+        // try {
             return do_evaluate(context);
-        } catch (const std::exception & e) {
-            std::ostringstream out;
-            out << e.what();
-            if (location.source) out << error_location_suffix(*location.source, location.pos);
-            throw std::runtime_error(out.str());
-        }
+        // } catch (const std::exception & e) {
+        //     std::ostringstream out;
+        //     out << e.what();
+        //     if (location.source) out << error_location_suffix(*location.source, location.pos);
+        //     IC_API::trap(out.str());
+        // }
     }
 };
 
@@ -681,7 +681,7 @@ static void destructuring_assign(const std::vector<std::string> & var_names, con
       context->set(name, item);
   } else {
       if (!item.is_array() || item.size() != var_names.size()) {
-          throw std::runtime_error("Mismatched number of variables and items in destructuring assignment");
+          IC_API::trap("Mismatched number of variables and items in destructuring assignment");
       }
       for (size_t i = 0; i < var_names.size(); ++i) {
           context->set(var_names[i], item.at(i));
@@ -823,14 +823,14 @@ protected:
 public:
     TemplateNode(const Location & location) : location_(location) {}
     void render(std::ostringstream & out, const std::shared_ptr<Context> & context) const {
-        try {
+        // try {
             do_render(out, context);
-        } catch (const std::exception & e) {
-            std::ostringstream err;
-            err << e.what();
-            if (location_.source) err << error_location_suffix(*location_.source, location_.pos);
-            throw std::runtime_error(err.str());
-        }
+        // } catch (const std::exception & e) {
+        //     std::ostringstream err;
+        //     err << e.what();
+        //     if (location_.source) err << error_location_suffix(*location_.source, location_.pos);
+        //     IC_API::trap(err.str());
+        // }
     }
     const Location & location() const { return location_; }
     virtual ~TemplateNode() = default;
@@ -865,7 +865,7 @@ class ExpressionNode : public TemplateNode {
 public:
     ExpressionNode(const Location & location, std::shared_ptr<Expression> && e) : TemplateNode(location), expr(std::move(e)) {}
     void do_render(std::ostringstream & out, const std::shared_ptr<Context> & context) const override {
-      if (!expr) throw std::runtime_error("ExpressionNode.expr is null");
+      if (!expr) IC_API::trap("ExpressionNode.expr is null");
       auto result = expr->evaluate(context);
       if (result.is_string()) {
           out << result.get<std::string>();
@@ -889,7 +889,7 @@ public:
             enter_branch = branch.first->evaluate(context).to_bool();
           }
           if (enter_branch) {
-            if (!branch.second) throw std::runtime_error("IfNode.cascade.second is null");
+            if (!branch.second) IC_API::trap("IfNode.cascade.second is null");
               branch.second->render(out, context);
               return;
           }
@@ -911,8 +911,8 @@ public:
 
     void do_render(std::ostringstream & out, const std::shared_ptr<Context> & context) const override {
       // https://jinja.palletsprojects.com/en/3.0.x/templates/#for
-      if (!iterable) throw std::runtime_error("ForNode.iterable is null");
-      if (!body) throw std::runtime_error("ForNode.body is null");
+      if (!iterable) IC_API::trap("ForNode.iterable is null");
+      if (!body) IC_API::trap("ForNode.body is null");
 
       auto iterable_value = iterable->evaluate(context);
       Value::CallableType loop_function;
@@ -921,7 +921,7 @@ public:
           auto filtered_items = Value::array();
           if (!iter.is_null()) {
             if (!iterable_value.is_iterable()) {
-              throw std::runtime_error("For loop iterable must be iterable: " + iterable_value.dump());
+              IC_API::trap("For loop iterable must be iterable: " + iterable_value.dump());
             }
             iterable_value.for_each([&](Value & item) {
                 destructuring_assign(var_names, context, item);
@@ -941,7 +941,7 @@ public:
               size_t cycle_index = 0;
               loop.set("cycle", Value::callable([&](const std::shared_ptr<Context> &, ArgumentsValue & args) {
                   if (args.args.empty() || !args.kwargs.empty()) {
-                      throw std::runtime_error("cycle() expects at least 1 positional argument and no named arg");
+                      IC_API::trap("cycle() expects at least 1 positional argument and no named arg");
                   }
                   auto item = args.args[cycle_index];
                   cycle_index = (cycle_index + 1) % args.args.size();
@@ -969,7 +969,7 @@ public:
       if (recursive) {
         loop_function = [&](const std::shared_ptr<Context> &, ArgumentsValue & args) {
             if (args.args.size() != 1 || !args.kwargs.empty() || !args.args[0].is_array()) {
-                throw std::runtime_error("loop() expects exactly 1 positional iterable argument");
+                IC_API::trap("loop() expects exactly 1 positional iterable argument");
             }
             auto & items = args.args[0];
             visit(items);
@@ -997,21 +997,21 @@ public:
         }
     }
     void do_render(std::ostringstream &, const std::shared_ptr<Context> & macro_context) const override {
-        if (!name) throw std::runtime_error("MacroNode.name is null");
-        if (!body) throw std::runtime_error("MacroNode.body is null");
+        if (!name) IC_API::trap("MacroNode.name is null");
+        if (!body) IC_API::trap("MacroNode.body is null");
         auto callable = Value::callable([&](const std::shared_ptr<Context> & context, ArgumentsValue & args) {
             auto call_context = macro_context;
             std::vector<bool> param_set(params.size(), false);
             for (size_t i = 0, n = args.args.size(); i < n; i++) {
                 auto & arg = args.args[i];
-                if (i >= params.size()) throw std::runtime_error("Too many positional arguments for macro " + name->get_name());
+                if (i >= params.size()) IC_API::trap("Too many positional arguments for macro " + name->get_name());
                 param_set[i] = true;
                 auto & param_name = params[i].first;
                 call_context->set(param_name, arg);
             }
             for (auto & [arg_name, value] : args.kwargs) {
                 auto it = named_param_positions.find(arg_name);
-                if (it == named_param_positions.end()) throw std::runtime_error("Unknown parameter name for macro " + name->get_name() + ": " + arg_name);
+                if (it == named_param_positions.end()) IC_API::trap("Unknown parameter name for macro " + name->get_name() + ": " + arg_name);
 
                 call_context->set(arg_name, value);
                 param_set[it->second] = true;
@@ -1038,11 +1038,11 @@ public:
         : TemplateNode(location), filter(std::move(f)), body(std::move(b)) {}
 
     void do_render(std::ostringstream & out, const std::shared_ptr<Context> & context) const override {
-        if (!filter) throw std::runtime_error("FilterNode.filter is null");
-        if (!body) throw std::runtime_error("FilterNode.body is null");
+        if (!filter) IC_API::trap("FilterNode.filter is null");
+        if (!body) IC_API::trap("FilterNode.body is null");
         auto filter_value = filter->evaluate(context);
         if (!filter_value.is_callable()) {
-            throw std::runtime_error("Filter must be a callable: " + filter_value.dump());
+            IC_API::trap("Filter must be a callable: " + filter_value.dump());
         }
         std::string rendered_body = body->render(context);
 
@@ -1060,14 +1060,14 @@ public:
     SetNode(const Location & location, const std::string & ns, const std::vector<std::string> & vns, std::shared_ptr<Expression> && v)
         : TemplateNode(location), ns(ns), var_names(vns), value(std::move(v)) {}
     void do_render(std::ostringstream &, const std::shared_ptr<Context> & context) const override {
-      if (!value) throw std::runtime_error("SetNode.value is null");
+      if (!value) IC_API::trap("SetNode.value is null");
       if (!ns.empty()) {
         if (var_names.size() != 1) {
-          throw std::runtime_error("Namespaced set only supports a single variable name");
+          IC_API::trap("Namespaced set only supports a single variable name");
         }
         auto & name = var_names[0];
         auto ns_value = context->get(ns);
-        if (!ns_value.is_object()) throw std::runtime_error("Namespace '" + ns + "' is not an object");
+        if (!ns_value.is_object()) IC_API::trap("Namespace '" + ns + "' is not an object");
         ns_value.set(name, this->value->evaluate(context));
       } else {
         auto val = value->evaluate(context);
@@ -1083,7 +1083,7 @@ public:
     SetTemplateNode(const Location & location, const std::string & name, std::shared_ptr<TemplateNode> && tv)
         : TemplateNode(location), name(name), template_value(std::move(tv)) {}
     void do_render(std::ostringstream &, const std::shared_ptr<Context> & context) const override {
-      if (!template_value) throw std::runtime_error("SetTemplateNode.template_value is null");
+      if (!template_value) IC_API::trap("SetTemplateNode.template_value is null");
       Value value { template_value->render(context) };
       context->set(name, value);
     }
@@ -1097,8 +1097,8 @@ public:
     IfExpr(const Location & location, std::shared_ptr<Expression> && c, std::shared_ptr<Expression> && t, std::shared_ptr<Expression> && e)
         : Expression(location), condition(std::move(c)), then_expr(std::move(t)), else_expr(std::move(e)) {}
     Value do_evaluate(const std::shared_ptr<Context> & context) const override {
-      if (!condition) throw std::runtime_error("IfExpr.condition is null");
-      if (!then_expr) throw std::runtime_error("IfExpr.then_expr is null");
+      if (!condition) IC_API::trap("IfExpr.condition is null");
+      if (!then_expr) IC_API::trap("IfExpr.then_expr is null");
       if (condition->evaluate(context).to_bool()) {
         return then_expr->evaluate(context);
       }
@@ -1125,7 +1125,7 @@ public:
     Value do_evaluate(const std::shared_ptr<Context> & context) const override {
         auto result = Value::array();
         for (const auto& e : elements) {
-            if (!e) throw std::runtime_error("Array element is null");
+            if (!e) IC_API::trap("Array element is null");
             result.push_back(e->evaluate(context));
         }
         return result;
@@ -1140,8 +1140,8 @@ public:
     Value do_evaluate(const std::shared_ptr<Context> & context) const override {
         auto result = Value::object();
         for (const auto& [key, value] : elements) {
-            if (!key) throw std::runtime_error("Dict key is null");
-            if (!value) throw std::runtime_error("Dict value is null");
+            if (!key) IC_API::trap("Dict key is null");
+            if (!value) IC_API::trap("Dict value is null");
             result.set(key->evaluate(context), value->evaluate(context));
         }
         return result;
@@ -1154,7 +1154,7 @@ public:
     SliceExpr(const Location & location, std::shared_ptr<Expression> && s, std::shared_ptr<Expression> && e)
       : Expression(location), start(std::move(s)), end(std::move(e)) {}
     Value do_evaluate(const std::shared_ptr<Context> &) const override {
-        throw std::runtime_error("SliceExpr not implemented");
+        IC_API::trap("SliceExpr not implemented");
     }
 };
 
@@ -1165,8 +1165,8 @@ public:
     SubscriptExpr(const Location & location, std::shared_ptr<Expression> && b, std::shared_ptr<Expression> && i)
         : Expression(location), base(std::move(b)), index(std::move(i)) {}
     Value do_evaluate(const std::shared_ptr<Context> & context) const override {
-        if (!base) throw std::runtime_error("SubscriptExpr.base is null");
-        if (!index) throw std::runtime_error("SubscriptExpr.index is null");
+        if (!base) IC_API::trap("SubscriptExpr.base is null");
+        if (!index) IC_API::trap("SubscriptExpr.index is null");
         auto target_value = base->evaluate(context);
         if (auto slice = dynamic_cast<SliceExpr*>(index.get())) {
           auto start = slice->start ? slice->start->evaluate(context).get<int64_t>() : 0;
@@ -1185,15 +1185,15 @@ public:
             }
             return result;
           } else {
-            throw std::runtime_error(target_value.is_null() ? "Cannot subscript null" : "Subscripting only supported on arrays and strings");
+            IC_API::trap(target_value.is_null() ? "Cannot subscript null" : "Subscripting only supported on arrays and strings");
           }
         } else {
           auto index_value = index->evaluate(context);
           if (target_value.is_null()) {
             if (auto t = dynamic_cast<VariableExpr*>(base.get())) {
-              throw std::runtime_error("'" + t->get_name() + "' is " + (context->contains(t->get_name()) ? "null" : "not defined"));
+              IC_API::trap("'" + t->get_name() + "' is " + (context->contains(t->get_name()) ? "null" : "not defined"));
             }
-            throw std::runtime_error("Trying to access property '" +  index_value.dump() + "' on null!");
+            IC_API::trap("Trying to access property '" +  index_value.dump() + "' on null!");
           }
           return target_value.get(index_value);
         }
@@ -1208,7 +1208,7 @@ public:
     UnaryOpExpr(const Location & location, std::shared_ptr<Expression> && e, Op o)
       : Expression(location), expr(std::move(e)), op(o) {}
     Value do_evaluate(const std::shared_ptr<Context> & context) const override {
-        if (!expr) throw std::runtime_error("UnaryOpExpr.expr is null");
+        if (!expr) IC_API::trap("UnaryOpExpr.expr is null");
         auto e = expr->evaluate(context);
         switch (op) {
             case Op::Plus: return e;
@@ -1216,10 +1216,10 @@ public:
             case Op::LogicalNot: return !e.to_bool();
             case Op::Expansion:
             case Op::ExpansionDict:
-                throw std::runtime_error("Expansion operator is only supported in function calls and collections");
+                IC_API::trap("Expansion operator is only supported in function calls and collections");
 
         }
-        throw std::runtime_error("Unknown unary operator");
+        IC_API::trap("Unknown unary operator");
     }
 };
 
@@ -1234,14 +1234,14 @@ public:
     BinaryOpExpr(const Location & location, std::shared_ptr<Expression> && l, std::shared_ptr<Expression> && r, Op o)
         : Expression(location), left(std::move(l)), right(std::move(r)), op(o) {}
     Value do_evaluate(const std::shared_ptr<Context> & context) const override {
-        if (!left) throw std::runtime_error("BinaryOpExpr.left is null");
-        if (!right) throw std::runtime_error("BinaryOpExpr.right is null");
+        if (!left) IC_API::trap("BinaryOpExpr.left is null");
+        if (!right) IC_API::trap("BinaryOpExpr.right is null");
         auto l = left->evaluate(context);
 
         auto do_eval = [&](const Value & l) -> Value {
           if (op == Op::Is || op == Op::IsNot) {
             auto t = dynamic_cast<VariableExpr*>(right.get());
-            if (!t) throw std::runtime_error("Right side of 'is' operator must be a variable");
+            if (!t) IC_API::trap("Right side of 'is' operator must be a variable");
 
             auto eval = [&]() {
               const auto & name = t->get_name();
@@ -1255,7 +1255,7 @@ public:
               if (name == "iterable") return l.is_iterable();
               if (name == "sequence") return l.is_array();
               if (name == "defined") return !l.is_null();
-              throw std::runtime_error("Unknown type for 'is' operator: " + name);
+              IC_API::trap("Unknown type for 'is' operator: " + name);
             };
             auto value = eval();
             return Value(op == Op::Is ? value : !value);
@@ -1289,7 +1289,7 @@ public:
               case Op::NotIn:     return !(r.is_array() && r.contains(l));
               default:            break;
           }
-          throw std::runtime_error("Unknown binary operator");
+          IC_API::trap("Unknown binary operator");
         };
 
         if (l.is_callable()) {
@@ -1314,7 +1314,7 @@ struct ArgumentsExpression {
                 if (un_expr->op == UnaryOpExpr::Op::Expansion) {
                     auto array = un_expr->expr->evaluate(context);
                     if (!array.is_array()) {
-                        throw std::runtime_error("Expansion operator only supported on arrays");
+                        IC_API::trap("Expansion operator only supported on arrays");
                     }
                     array.for_each([&](Value & value) {
                         vargs.args.push_back(value);
@@ -1323,7 +1323,7 @@ struct ArgumentsExpression {
                 } else if (un_expr->op == UnaryOpExpr::Op::ExpansionDict) {
                     auto dict = un_expr->expr->evaluate(context);
                     if (!dict.is_object()) {
-                        throw std::runtime_error("ExpansionDict operator only supported on objects");
+                        IC_API::trap("ExpansionDict operator only supported on objects");
                     }
                     dict.for_each([&](const Value & key) {
                         vargs.kwargs.push_back({key.get<std::string>(), dict.at(key)});
@@ -1371,12 +1371,12 @@ public:
     MethodCallExpr(const Location & location, std::shared_ptr<Expression> && obj, std::shared_ptr<VariableExpr> && m, ArgumentsExpression && a)
         : Expression(location), object(std::move(obj)), method(std::move(m)), args(std::move(a)) {}
     Value do_evaluate(const std::shared_ptr<Context> & context) const override {
-        if (!object) throw std::runtime_error("MethodCallExpr.object is null");
-        if (!method) throw std::runtime_error("MethodCallExpr.method is null");
+        if (!object) IC_API::trap("MethodCallExpr.object is null");
+        if (!method) IC_API::trap("MethodCallExpr.method is null");
         auto obj = object->evaluate(context);
         auto vargs = args.evaluate(context);
         if (obj.is_null()) {
-          throw std::runtime_error("Trying to call method '" + method->get_name() + "' on null");
+          IC_API::trap("Trying to call method '" + method->get_name() + "' on null");
         }
         if (obj.is_array()) {
           if (method->get_name() == "append") {
@@ -1389,7 +1389,7 @@ public:
           } else if (method->get_name() == "insert") {
               vargs.expectArgs("insert method", {2, 2}, {0, 0});
               auto index = vargs.args[0].get<int64_t>();
-              if (index < 0 || index > (int64_t) obj.size()) throw std::runtime_error("Index out of range for insert method");
+              if (index < 0 || index > (int64_t) obj.size()) IC_API::trap("Index out of range for insert method");
               obj.insert(index, vargs.args[1]);
               return Value();
           }
@@ -1415,7 +1415,7 @@ public:
           } else if (obj.contains(method->get_name())) {
             auto callable = obj.at(method->get_name());
             if (!callable.is_callable()) {
-              throw std::runtime_error("Property '" + method->get_name() + "' is not callable");
+              IC_API::trap("Property '" + method->get_name() + "' is not callable");
             }
             return callable.call(context, vargs);
           }
@@ -1438,7 +1438,7 @@ public:
             return res;
           }
         }
-        throw std::runtime_error("Unknown method: " + method->get_name());
+        IC_API::trap("Unknown method: " + method->get_name());
     }
 };
 
@@ -1449,10 +1449,10 @@ public:
     CallExpr(const Location & location, std::shared_ptr<Expression> && obj, ArgumentsExpression && a)
         : Expression(location), object(std::move(obj)), args(std::move(a)) {}
     Value do_evaluate(const std::shared_ptr<Context> & context) const override {
-        if (!object) throw std::runtime_error("CallExpr.object is null");
+        if (!object) IC_API::trap("CallExpr.object is null");
         auto obj = object->evaluate(context);
         if (!obj.is_callable()) {
-          throw std::runtime_error("Object is not callable: " + obj.dump(2));
+          IC_API::trap("Object is not callable: " + obj.dump(2));
         }
         auto vargs = args.evaluate(context);
         return obj.call(context, vargs);
@@ -1468,7 +1468,7 @@ public:
         Value result;
         bool first = true;
         for (const auto& part : parts) {
-          if (!part) throw std::runtime_error("FilterExpr.part is null");
+          if (!part) IC_API::trap("FilterExpr.part is null");
           if (first) {
             first = false;
             result = part->evaluate(context);
@@ -1503,7 +1503,7 @@ private:
     Options options;
 
     Parser(const std::shared_ptr<std::string>& template_str, const Options & options) : template_str(template_str), options(options) {
-      if (!template_str) throw std::runtime_error("Template string is null");
+      if (!template_str) IC_API::trap("Template string is null");
       start = it = this->template_str->begin();
       end = this->template_str->end();
     }
@@ -1570,11 +1570,11 @@ private:
           if (std::isdigit(*it)) {
             ++it;
           } else if (*it == '.') {
-            if (hasDecimal) throw std::runtime_error("Multiple decimal points");
+            if (hasDecimal) IC_API::trap("Multiple decimal points");
             hasDecimal = true;
             ++it;
           } else if (it != start && (*it == 'e' || *it == 'E')) {
-            if (hasExponent) throw std::runtime_error("Multiple exponents");
+            if (hasExponent) IC_API::trap("Multiple exponents");
             hasExponent = true;
             ++it;
           } else {
@@ -1587,12 +1587,12 @@ private:
         }
 
         std::string str(start, it);
-        try {
+        // try {
           return json::parse(str);
-        } catch (json::parse_error& e) {
-          throw std::runtime_error("Failed to parse number: '" + str + "' (" + std::string(e.what()) + ")");
-          return json();
-        }
+        // } catch (json::parse_error& e) {
+        //   IC_API::trap("Failed to parse number: '" + str + "' (" + std::string(e.what()) + ")");
+        //   return json();
+        // }
     }
 
     /** integer, float, bool, string */
@@ -1610,7 +1610,7 @@ private:
         if (token == "true" || token == "True") return std::make_shared<Value>(true);
         if (token == "false" || token == "False") return std::make_shared<Value>(false);
         if (token == "None") return std::make_shared<Value>(nullptr);
-        throw std::runtime_error("Unknown constant token: " + token);
+        IC_API::trap("Unknown constant token: " + token);
       }
 
       auto number = parseNumber(it, end);
@@ -1699,26 +1699,26 @@ private:
 
     std::pair<std::shared_ptr<Expression>, std::shared_ptr<Expression>> parseIfExpression() {
         auto condition = parseLogicalOr();
-        if (!condition) throw std::runtime_error("Expected condition expression");
+        if (!condition) IC_API::trap("Expected condition expression");
 
         static std::regex else_tok(R"(else\b)");
         std::shared_ptr<Expression> else_expr;
         if (!consumeToken(else_tok).empty()) {
           else_expr = parseExpression();
-          if (!else_expr) throw std::runtime_error("Expected 'else' expression");
+          if (!else_expr) IC_API::trap("Expected 'else' expression");
         }
         return std::pair(std::move(condition), std::move(else_expr));
     }
 
     std::shared_ptr<Expression> parseLogicalOr() {
         auto left = parseLogicalAnd();
-        if (!left) throw std::runtime_error("Expected left side of 'logical or' expression");
+        if (!left) IC_API::trap("Expected left side of 'logical or' expression");
 
         static std::regex or_tok(R"(or\b)");
         auto location = get_location();
         while (!consumeToken(or_tok).empty()) {
             auto right = parseLogicalAnd();
-            if (!right) throw std::runtime_error("Expected right side of 'or' expression");
+            if (!right) IC_API::trap("Expected right side of 'or' expression");
             left = std::make_shared<BinaryOpExpr>(location, std::move(left), std::move(right), BinaryOpExpr::Op::Or);
         }
         return left;
@@ -1730,7 +1730,7 @@ private:
 
         if (!consumeToken(not_tok).empty()) {
           auto sub = parseLogicalNot();
-          if (!sub) throw std::runtime_error("Expected expression after 'not' keyword");
+          if (!sub) IC_API::trap("Expected expression after 'not' keyword");
           return std::make_shared<UnaryOpExpr>(location, std::move(sub), UnaryOpExpr::Op::LogicalNot);
         }
         return parseLogicalCompare();
@@ -1738,13 +1738,13 @@ private:
 
     std::shared_ptr<Expression> parseLogicalAnd() {
         auto left = parseLogicalNot();
-        if (!left) throw std::runtime_error("Expected left side of 'logical and' expression");
+        if (!left) IC_API::trap("Expected left side of 'logical and' expression");
 
         static std::regex and_tok(R"(and\b)");
         auto location = get_location();
         while (!consumeToken(and_tok).empty()) {
             auto right = parseLogicalNot();
-            if (!right) throw std::runtime_error("Expected right side of 'and' expression");
+            if (!right) IC_API::trap("Expected right side of 'and' expression");
             left = std::make_shared<BinaryOpExpr>(location, std::move(left), std::move(right), BinaryOpExpr::Op::And);
         }
         return left;
@@ -1752,7 +1752,7 @@ private:
 
     std::shared_ptr<Expression> parseLogicalCompare() {
         auto left = parseStringConcat();
-        if (!left) throw std::runtime_error("Expected left side of 'logical compare' expression");
+        if (!left) IC_API::trap("Expected left side of 'logical compare' expression");
 
         static std::regex compare_tok(R"(==|!=|<=?|>=?|in\b|is\b|not[\r\n\s]+in\b)");
         static std::regex not_tok(R"(not\b)");
@@ -1763,7 +1763,7 @@ private:
               auto negated = !consumeToken(not_tok).empty();
 
               auto identifier = parseIdentifier();
-              if (!identifier) throw std::runtime_error("Expected identifier after 'is' keyword");
+              if (!identifier) IC_API::trap("Expected identifier after 'is' keyword");
 
               return std::make_shared<BinaryOpExpr>(
                   left->location,
@@ -1771,7 +1771,7 @@ private:
                   negated ? BinaryOpExpr::Op::IsNot : BinaryOpExpr::Op::Is);
             }
             auto right = parseStringConcat();
-            if (!right) throw std::runtime_error("Expected right side of 'logical compare' expression");
+            if (!right) IC_API::trap("Expected right side of 'logical compare' expression");
             BinaryOpExpr::Op op;
             if (op_str == "==") op = BinaryOpExpr::Op::Eq;
             else if (op_str == "!=") op = BinaryOpExpr::Op::Ne;
@@ -1781,7 +1781,7 @@ private:
             else if (op_str == ">=") op = BinaryOpExpr::Op::Ge;
             else if (op_str == "in") op = BinaryOpExpr::Op::In;
             else if (op_str.substr(0, 3) == "not") op = BinaryOpExpr::Op::NotIn;
-            else throw std::runtime_error("Unknown comparison operator: " + op_str);
+            else IC_API::trap("Unknown comparison operator: " + op_str);
             left = std::make_shared<BinaryOpExpr>(get_location(), std::move(left), std::move(right), op);
         }
         return left;
@@ -1789,7 +1789,7 @@ private:
 
     Expression::Parameters parseParameters() {
         consumeSpaces();
-        if (consumeToken("(").empty()) throw std::runtime_error("Expected opening parenthesis in param list");
+        if (consumeToken("(").empty()) IC_API::trap("Expected opening parenthesis in param list");
 
         Expression::Parameters result;
 
@@ -1798,12 +1798,12 @@ private:
                 return result;
             }
             auto expr = parseExpression();
-            if (!expr) throw std::runtime_error("Expected expression in call args");
+            if (!expr) IC_API::trap("Expected expression in call args");
 
             if (auto ident = dynamic_cast<VariableExpr*>(expr.get())) {
                 if (!consumeToken("=").empty()) {
                     auto value = parseExpression();
-                    if (!value) throw std::runtime_error("Expected expression in for named arg");
+                    if (!value) IC_API::trap("Expected expression in for named arg");
                     result.emplace_back(ident->get_name(), std::move(value));
                 } else {
                     result.emplace_back(ident->get_name(), nullptr);
@@ -1813,17 +1813,17 @@ private:
             }
             if (consumeToken(",").empty()) {
               if (consumeToken(")").empty()) {
-                throw std::runtime_error("Expected closing parenthesis in call args");
+                IC_API::trap("Expected closing parenthesis in call args");
               }
               return result;
             }
         }
-        throw std::runtime_error("Expected closing parenthesis in call args");
+        IC_API::trap("Expected closing parenthesis in call args");
     }
 
     ArgumentsExpression parseCallArgs() {
         consumeSpaces();
-        if (consumeToken("(").empty()) throw std::runtime_error("Expected opening parenthesis in call args");
+        if (consumeToken("(").empty()) IC_API::trap("Expected opening parenthesis in call args");
 
         ArgumentsExpression result;
 
@@ -1832,12 +1832,12 @@ private:
                 return result;
             }
             auto expr = parseExpression();
-            if (!expr) throw std::runtime_error("Expected expression in call args");
+            if (!expr) IC_API::trap("Expected expression in call args");
 
             if (auto ident = dynamic_cast<VariableExpr*>(expr.get())) {
                 if (!consumeToken("=").empty()) {
                     auto value = parseExpression();
-                    if (!value) throw std::runtime_error("Expected expression in for named arg");
+                    if (!value) IC_API::trap("Expected expression in for named arg");
                     result.kwargs.emplace_back(ident->get_name(), std::move(value));
                 } else {
                     result.args.emplace_back(std::move(expr));
@@ -1847,12 +1847,12 @@ private:
             }
             if (consumeToken(",").empty()) {
               if (consumeToken(")").empty()) {
-                throw std::runtime_error("Expected closing parenthesis in call args");
+                IC_API::trap("Expected closing parenthesis in call args");
               }
               return result;
             }
         }
-        throw std::runtime_error("Expected closing parenthesis in call args");
+        IC_API::trap("Expected closing parenthesis in call args");
     }
 
     std::shared_ptr<VariableExpr> parseIdentifier() {
@@ -1866,12 +1866,12 @@ private:
 
     std::shared_ptr<Expression> parseStringConcat() {
         auto left = parseMathPow();
-        if (!left) throw std::runtime_error("Expected left side of 'string concat' expression");
+        if (!left) IC_API::trap("Expected left side of 'string concat' expression");
 
         static std::regex concat_tok(R"(~(?!\}))");
         if (!consumeToken(concat_tok).empty()) {
             auto right = parseLogicalAnd();
-            if (!right) throw std::runtime_error("Expected right side of 'string concat' expression");
+            if (!right) IC_API::trap("Expected right side of 'string concat' expression");
             left = std::make_shared<BinaryOpExpr>(get_location(), std::move(left), std::move(right), BinaryOpExpr::Op::StrConcat);
         }
         return left;
@@ -1879,11 +1879,11 @@ private:
 
     std::shared_ptr<Expression> parseMathPow() {
         auto left = parseMathPlusMinus();
-        if (!left) throw std::runtime_error("Expected left side of 'math pow' expression");
+        if (!left) IC_API::trap("Expected left side of 'math pow' expression");
 
         while (!consumeToken("**").empty()) {
             auto right = parseMathPlusMinus();
-            if (!right) throw std::runtime_error("Expected right side of 'math pow' expression");
+            if (!right) IC_API::trap("Expected right side of 'math pow' expression");
             left = std::make_shared<BinaryOpExpr>(get_location(), std::move(left), std::move(right), BinaryOpExpr::Op::MulMul);
         }
         return left;
@@ -1893,11 +1893,11 @@ private:
         static std::regex plus_minus_tok(R"(\+|-(?![}%#]\}))");
 
         auto left = parseMathMulDiv();
-        if (!left) throw std::runtime_error("Expected left side of 'math plus/minus' expression");
+        if (!left) IC_API::trap("Expected left side of 'math plus/minus' expression");
         std::string op_str;
         while (!(op_str = consumeToken(plus_minus_tok)).empty()) {
             auto right = parseMathMulDiv();
-            if (!right) throw std::runtime_error("Expected right side of 'math plus/minus' expression");
+            if (!right) IC_API::trap("Expected right side of 'math plus/minus' expression");
             auto op = op_str == "+" ? BinaryOpExpr::Op::Add : BinaryOpExpr::Op::Sub;
             left = std::make_shared<BinaryOpExpr>(get_location(), std::move(left), std::move(right), op);
         }
@@ -1906,13 +1906,13 @@ private:
 
     std::shared_ptr<Expression> parseMathMulDiv() {
         auto left = parseMathUnaryPlusMinus();
-        if (!left) throw std::runtime_error("Expected left side of 'math mul/div' expression");
+        if (!left) IC_API::trap("Expected left side of 'math mul/div' expression");
 
         static std::regex mul_div_tok(R"(\*\*?|//?|%(?!\}))");
         std::string op_str;
         while (!(op_str = consumeToken(mul_div_tok)).empty()) {
             auto right = parseMathUnaryPlusMinus();
-            if (!right) throw std::runtime_error("Expected right side of 'math mul/div' expression");
+            if (!right) IC_API::trap("Expected right side of 'math mul/div' expression");
             auto op = op_str == "*" ? BinaryOpExpr::Op::Mul
                 : op_str == "**" ? BinaryOpExpr::Op::MulMul
                 : op_str == "/" ? BinaryOpExpr::Op::Div
@@ -1944,7 +1944,7 @@ private:
         static std::regex unary_plus_minus_tok(R"(\+|-(?![}%#]\}))");
         auto op_str = consumeToken(unary_plus_minus_tok);
         auto expr = parseExpansion();
-        if (!expr) throw std::runtime_error("Expected expr of 'unary plus/minus/expansion' expression");
+        if (!expr) IC_API::trap("Expected expr of 'unary plus/minus/expansion' expression");
 
         if (!op_str.empty()) {
             auto op = op_str == "+" ? UnaryOpExpr::Op::Plus : UnaryOpExpr::Op::Minus;
@@ -1958,7 +1958,7 @@ private:
       auto op_str = consumeToken(expansion_tok);
       auto expr = parseValueExpression();
       if (op_str.empty()) return expr;
-      if (!expr) throw std::runtime_error("Expected expr of 'expansion' expression");
+      if (!expr) IC_API::trap("Expected expr of 'expansion' expression");
       return std::make_shared<UnaryOpExpr>(get_location(), std::move(expr), op_str == "*" ? UnaryOpExpr::Op::Expansion : UnaryOpExpr::Op::ExpansionDict);
     }
 
@@ -1983,7 +1983,7 @@ private:
         auto dictionary = parseDictionary();
         if (dictionary) return dictionary;
 
-        throw std::runtime_error("Expected value expression");
+        IC_API::trap("Expected value expression");
       };
 
       auto value = parseValue();
@@ -2008,13 +2008,13 @@ private:
                 index = std::move(slice_start);
               }
             }
-            if (!index) throw std::runtime_error("Empty index in subscript");
-            if (consumeToken("]").empty()) throw std::runtime_error("Expected closing bracket in subscript");
+            if (!index) IC_API::trap("Empty index in subscript");
+            if (consumeToken("]").empty()) IC_API::trap("Expected closing bracket in subscript");
 
             value = std::make_shared<SubscriptExpr>(value->location, std::move(value), std::move(index));
         } else if (!consumeToken(".").empty()) {
             auto identifier = parseIdentifier();
-            if (!identifier) throw std::runtime_error("Expected identifier in subscript");
+            if (!identifier) IC_API::trap("Expected identifier in subscript");
 
             consumeSpaces();
             if (peekSymbols({ "(" })) {
@@ -2040,7 +2040,7 @@ private:
         if (consumeToken("(").empty()) return nullptr;
 
         auto expr = parseExpression();
-        if (!expr) throw std::runtime_error("Expected expression in braced expression");
+        if (!expr) IC_API::trap("Expected expression in braced expression");
 
         if (!consumeToken(")").empty()) {
             return expr;  // Drop the parentheses
@@ -2050,16 +2050,16 @@ private:
         tuple.emplace_back(std::move(expr));
 
         while (it != end) {
-          if (consumeToken(",").empty()) throw std::runtime_error("Expected comma in tuple");
+          if (consumeToken(",").empty()) IC_API::trap("Expected comma in tuple");
           auto next = parseExpression();
-          if (!next) throw std::runtime_error("Expected expression in tuple");
+          if (!next) IC_API::trap("Expected expression in tuple");
           tuple.push_back(std::move(next));
 
           if (!consumeToken(")").empty()) {
               return std::make_shared<ArrayExpr>(get_location(), std::move(tuple));
           }
         }
-        throw std::runtime_error("Expected closing parenthesis");
+        IC_API::trap("Expected closing parenthesis");
     }
 
     std::shared_ptr<Expression> parseArray() {
@@ -2070,21 +2070,21 @@ private:
             return std::make_shared<ArrayExpr>(get_location(), std::move(elements));
         }
         auto first_expr = parseExpression();
-        if (!first_expr) throw std::runtime_error("Expected first expression in array");
+        if (!first_expr) IC_API::trap("Expected first expression in array");
         elements.push_back(std::move(first_expr));
 
         while (it != end) {
             if (!consumeToken(",").empty()) {
               auto expr = parseExpression();
-              if (!expr) throw std::runtime_error("Expected expression in array");
+              if (!expr) IC_API::trap("Expected expression in array");
               elements.push_back(std::move(expr));
             } else if (!consumeToken("]").empty()) {
                 return std::make_shared<ArrayExpr>(get_location(), std::move(elements));
             } else {
-                throw std::runtime_error("Expected comma or closing bracket in array");
+                IC_API::trap("Expected comma or closing bracket in array");
             }
         }
-        throw std::runtime_error("Expected closing bracket");
+        IC_API::trap("Expected closing bracket");
     }
 
     std::shared_ptr<Expression> parseDictionary() {
@@ -2097,10 +2097,10 @@ private:
 
         auto parseKeyValuePair = [&]() {
             auto key = parseExpression();
-            if (!key) throw std::runtime_error("Expected key in dictionary");
-            if (consumeToken(":").empty()) throw std::runtime_error("Expected colon betweek key & value in dictionary");
+            if (!key) IC_API::trap("Expected key in dictionary");
+            if (consumeToken(":").empty()) IC_API::trap("Expected colon betweek key & value in dictionary");
             auto value = parseExpression();
-            if (!value) throw std::runtime_error("Expected value in dictionary");
+            if (!value) IC_API::trap("Expected value in dictionary");
             elements.emplace_back(std::pair(std::move(key), std::move(value)));
         };
 
@@ -2112,10 +2112,10 @@ private:
             } else if (!consumeToken("}").empty()) {
                 return std::make_shared<DictExpr>(get_location(), std::move(elements));
             } else {
-                throw std::runtime_error("Expected comma or closing brace in dictionary");
+                IC_API::trap("Expected comma or closing brace in dictionary");
             }
         }
-        throw std::runtime_error("Expected closing brace");
+        IC_API::trap("Expected closing brace");
     }
 
     SpaceHandling parsePreSpace(const std::string& s) const {
@@ -2136,7 +2136,7 @@ private:
       static std::regex varnames_regex(R"(((?:\w+)(?:[\r\n\s]*,[\r\n\s]*(?:\w+))*)[\r\n\s]*)");
 
       std::vector<std::string> group;
-      if ((group = consumeTokenGroups(varnames_regex)).empty()) throw std::runtime_error("Expected variable names");
+      if ((group = consumeTokenGroups(varnames_regex)).empty()) IC_API::trap("Expected variable names");
       std::vector<std::string> varnames;
       std::istringstream iss(group[1]);
       std::string varname;
@@ -2146,14 +2146,25 @@ private:
       return varnames;
     }
 
-    std::runtime_error unexpected(const TemplateToken & token) const {
-      return std::runtime_error("Unexpected " + TemplateToken::typeToString(token.type)
+    // ICPP-PATCH-START
+    // throw not supported, using IC_API::trap instead, which expects a string
+    // std::runtime_error unexpected(const TemplateToken & token) const {
+    //   return std::runtime_error("Unexpected " + TemplateToken::typeToString(token.type)
+    //     + error_location_suffix(*template_str, token.location.pos));
+    // }
+    // std::runtime_error unterminated(const TemplateToken & token) const {
+    //   return std::runtime_error("Unterminated " + TemplateToken::typeToString(token.type)
+    //     + error_location_suffix(*template_str, token.location.pos));
+    // }
+    std::string unexpected(const TemplateToken & token) const {
+      return ("Unexpected " + TemplateToken::typeToString(token.type)
         + error_location_suffix(*template_str, token.location.pos));
     }
-    std::runtime_error unterminated(const TemplateToken & token) const {
-      return std::runtime_error("Unterminated " + TemplateToken::typeToString(token.type)
+    std::string unterminated(const TemplateToken & token) const {
+      return ("Unterminated " + TemplateToken::typeToString(token.type)
         + error_location_suffix(*template_str, token.location.pos));
     }
+    // ICPP-PATCH-END
 
     TemplateTokenVector tokenize() {
       static std::regex comment_tok(R"(\{#([-~]?)(.*?)([-~]?)#\})");
@@ -2169,7 +2180,7 @@ private:
       std::string text;
       std::smatch match;
 
-      try {
+      // try {
         while (it != end) {
           auto location = get_location();
 
@@ -2183,7 +2194,7 @@ private:
             auto expr = parseExpression();
 
             if ((group = consumeTokenGroups(expr_close_regex)).empty()) {
-              throw std::runtime_error("Expected closing expression tag");
+              IC_API::trap("Expected closing expression tag");
             }
 
             auto post_space = parsePostSpace(group[1]);
@@ -2194,21 +2205,21 @@ private:
             std::string keyword;
 
             auto parseBlockClose = [&]() -> SpaceHandling {
-              if ((group = consumeTokenGroups(block_close_regex)).empty()) throw std::runtime_error("Expected closing block tag");
+              if ((group = consumeTokenGroups(block_close_regex)).empty()) IC_API::trap("Expected closing block tag");
               return parsePostSpace(group[1]);
             };
 
-            if ((keyword = consumeToken(block_keyword_tok)).empty()) throw std::runtime_error("Expected block keyword");
+            if ((keyword = consumeToken(block_keyword_tok)).empty()) IC_API::trap("Expected block keyword");
 
             if (keyword == "if") {
               auto condition = parseExpression();
-              if (!condition) throw std::runtime_error("Expected condition in if block");
+              if (!condition) IC_API::trap("Expected condition in if block");
 
               auto post_space = parseBlockClose();
               tokens.push_back(std::make_unique<IfTemplateToken>(location, pre_space, post_space, std::move(condition)));
             } else if (keyword == "elif") {
               auto condition = parseExpression();
-              if (!condition) throw std::runtime_error("Expected condition in elif block");
+              if (!condition) IC_API::trap("Expected condition in elif block");
 
               auto post_space = parseBlockClose();
               tokens.push_back(std::make_unique<ElifTemplateToken>(location, pre_space, post_space, std::move(condition)));
@@ -2224,9 +2235,9 @@ private:
 
               auto varnames = parseVarNames();
               static std::regex in_tok(R"(in\b)");
-              if (consumeToken(in_tok).empty()) throw std::runtime_error("Expected 'in' keyword in for block");
+              if (consumeToken(in_tok).empty()) IC_API::trap("Expected 'in' keyword in for block");
               auto iterable = parseExpression(/* allow_if_expr = */ false);
-              if (!iterable) throw std::runtime_error("Expected iterable in for block");
+              if (!iterable) IC_API::trap("Expected iterable in for block");
 
               std::shared_ptr<Expression> condition;
               if (!consumeToken(if_tok).empty()) {
@@ -2255,16 +2266,16 @@ private:
                 ns = group[1];
                 var_names.push_back(group[2]);
 
-                if (consumeToken("=").empty()) throw std::runtime_error("Expected equals sign in set block");
+                if (consumeToken("=").empty()) IC_API::trap("Expected equals sign in set block");
 
                 value = parseExpression();
-                if (!value) throw std::runtime_error("Expected value in set block");
+                if (!value) IC_API::trap("Expected value in set block");
               } else {
                 var_names = parseVarNames();
 
                 if (!consumeToken("=").empty()) {
                   value = parseExpression();
-                  if (!value) throw std::runtime_error("Expected value in set block");
+                  if (!value) IC_API::trap("Expected value in set block");
                 }
               }
               auto post_space = parseBlockClose();
@@ -2274,7 +2285,7 @@ private:
               tokens.push_back(std::make_unique<EndSetTemplateToken>(location, pre_space, post_space));
             } else if (keyword == "macro") {
               auto macroname = parseIdentifier();
-              if (!macroname) throw std::runtime_error("Expected macro name in macro block");
+              if (!macroname) IC_API::trap("Expected macro name in macro block");
               auto params = parseParameters();
 
               auto post_space = parseBlockClose();
@@ -2284,7 +2295,7 @@ private:
               tokens.push_back(std::make_unique<EndMacroTemplateToken>(location, pre_space, post_space));
             } else if (keyword == "filter") {
               auto filter = parseExpression();
-              if (!filter) throw std::runtime_error("Expected expression in filter block");
+              if (!filter) IC_API::trap("Expected expression in filter block");
 
               auto post_space = parseBlockClose();
               tokens.push_back(std::make_unique<FilterTemplateToken>(location, pre_space, post_space, std::move(filter)));
@@ -2292,7 +2303,7 @@ private:
               auto post_space = parseBlockClose();
               tokens.push_back(std::make_unique<EndFilterTemplateToken>(location, pre_space, post_space));
             } else {
-              throw std::runtime_error("Unexpected block: " + keyword);
+              IC_API::trap("Unexpected block: " + keyword);
             }
           } else if (std::regex_search(it, end, match, non_text_open_regex)) {
             auto text_end = it + match.position();
@@ -2306,9 +2317,9 @@ private:
           }
         }
         return tokens;
-      } catch (const std::exception & e) {
-        throw std::runtime_error(e.what() + error_location_suffix(*template_str, std::distance(start, it)));
-      }
+      // } catch (const std::exception & e) {
+      //   IC_API::trap(e.what() + error_location_suffix(*template_str, std::distance(start, it)));
+      // }
     }
 
     std::shared_ptr<TemplateNode> parseTemplate(
@@ -2333,7 +2344,7 @@ private:
                 cascade.emplace_back(nullptr, parseTemplate(begin, ++it, end));
               }
               if (it == end || (*(it++))->type != TemplateToken::Type::EndIf) {
-                  throw unterminated(**start);
+                  IC_API::trap(unterminated(**start));
               }
               children.emplace_back(std::make_shared<IfNode>(token->location, std::move(cascade)));
           } else if (auto for_token = dynamic_cast<ForTemplateToken*>(token.get())) {
@@ -2343,13 +2354,13 @@ private:
                 else_body = parseTemplate(begin, ++it, end);
               }
               if (it == end || (*(it++))->type != TemplateToken::Type::EndFor) {
-                  throw unterminated(**start);
+                  IC_API::trap(unterminated(**start));
               }
               children.emplace_back(std::make_shared<ForNode>(token->location, std::move(for_token->var_names), std::move(for_token->iterable), std::move(for_token->condition), std::move(body), for_token->recursive, std::move(else_body)));
           } else if (dynamic_cast<GenerationTemplateToken*>(token.get())) {
               auto body = parseTemplate(begin, it, end);
               if (it == end || (*(it++))->type != TemplateToken::Type::EndGeneration) {
-                  throw unterminated(**start);
+                  IC_API::trap(unterminated(**start));
               }
               // Treat as a no-op, as our scope is templates for inference, not training (`{% generation %}` wraps generated tokens for masking).
               children.emplace_back(std::move(body));
@@ -2393,23 +2404,23 @@ private:
             } else {
               auto value_template = parseTemplate(begin, it, end);
               if (it == end || (*(it++))->type != TemplateToken::Type::EndSet) {
-                  throw unterminated(**start);
+                  IC_API::trap(unterminated(**start));
               }
-              if (!set_token->ns.empty()) throw std::runtime_error("Namespaced set not supported in set with template value");
-              if (set_token->var_names.size() != 1) throw std::runtime_error("Structural assignment not supported in set with template value");
+              if (!set_token->ns.empty()) IC_API::trap("Namespaced set not supported in set with template value");
+              if (set_token->var_names.size() != 1) IC_API::trap("Structural assignment not supported in set with template value");
               auto & name = set_token->var_names[0];
               children.emplace_back(std::make_shared<SetTemplateNode>(token->location, name, std::move(value_template)));
             }
           } else if (auto macro_token = dynamic_cast<MacroTemplateToken*>(token.get())) {
               auto body = parseTemplate(begin, it, end);
               if (it == end || (*(it++))->type != TemplateToken::Type::EndMacro) {
-                  throw unterminated(**start);
+                  IC_API::trap(unterminated(**start));
               }
               children.emplace_back(std::make_shared<MacroNode>(token->location, std::move(macro_token->name), std::move(macro_token->params), std::move(body)));
           } else if (auto filter_token = dynamic_cast<FilterTemplateToken*>(token.get())) {
               auto body = parseTemplate(begin, it, end);
               if (it == end || (*(it++))->type != TemplateToken::Type::EndFilter) {
-                  throw unterminated(**start);
+                  IC_API::trap(unterminated(**start));
               }
               children.emplace_back(std::make_shared<FilterNode>(token->location, std::move(filter_token->filter), std::move(body)));
           } else if (dynamic_cast<CommentTemplateToken*>(token.get())) {
@@ -2425,11 +2436,11 @@ private:
               it--;  // unconsume the token
               break;  // exit the loop
           } else {
-              throw unexpected(**(it-1));
+              IC_API::trap(unexpected(**(it-1)));
           }
         }
         if (fully && it != end) {
-            throw unexpected(**it);
+            IC_API::trap(unexpected(**(it)));
         }
         if (children.empty()) {
           return std::make_shared<TextNode>(Location { template_str, 0 }, std::string());
@@ -2465,13 +2476,13 @@ static Value simple_function(const std::string & fn_name, const std::vector<std:
         args_obj.set(params[i], arg);
         provided_args[i] = true;
       } else {
-        throw std::runtime_error("Too many positional params for " + fn_name);
+        IC_API::trap("Too many positional params for " + fn_name);
       }
     }
     for (auto & [name, value] : args.kwargs) {
       auto named_pos_it = named_positions.find(name);
       if (named_pos_it == named_positions.end()) {
-        throw std::runtime_error("Unknown argument " + name + " for function " + fn_name);
+        IC_API::trap("Unknown argument " + name + " for function " + fn_name);
       }
       provided_args[named_pos_it->second] = true;
       args_obj.set(name, value);
@@ -2484,7 +2495,7 @@ inline std::shared_ptr<Context> Context::builtins() {
   auto globals = Value::object();
 
   globals.set("raise_exception", simple_function("raise_exception", { "message" }, [](const std::shared_ptr<Context> &, Value & args) -> Value {
-    throw std::runtime_error(args.at("message").get<std::string>());
+    IC_API::trap(args.at("message").get<std::string>());
   }));
   globals.set("tojson", simple_function("tojson", { "value", "indent" }, [](const std::shared_ptr<Context> &, Value & args) {
     return Value(args.at("value").dump(args.get<int64_t>("indent", -1), /* tojson= */ true));
@@ -2508,7 +2519,7 @@ inline std::shared_ptr<Context> Context::builtins() {
   }));
   globals.set("last", simple_function("last", { "items" }, [](const std::shared_ptr<Context> &, Value & args) {
     auto items = args.at("items");
-    if (!items.is_array()) throw std::runtime_error("object is not a list");
+    if (!items.is_array()) IC_API::trap("object is not a list");
     if (items.size() == 0) return Value();
     return items.at(items.size() - 1);
   }));
@@ -2560,7 +2571,7 @@ inline std::shared_ptr<Context> Context::builtins() {
     return Value((int64_t) args.at("items").size());
   }));
   globals.set("dictsort", simple_function("dictsort", { "value" }, [](const std::shared_ptr<Context> &, Value & args) {
-    if (args.size() != 1) throw std::runtime_error("dictsort expects exactly 1 argument (TODO: fix implementation)");
+    if (args.size() != 1) IC_API::trap("dictsort expects exactly 1 argument (TODO: fix implementation)");
     auto & value = args.at("value");
     auto keys = value.keys();
     std::sort(keys.begin(), keys.end());
@@ -2588,7 +2599,7 @@ inline std::shared_ptr<Context> Context::builtins() {
     } else {
       return simple_function("", {"items"}, [sep, do_join](const std::shared_ptr<Context> &, Value & args) {
         auto & items = args.at("items");
-        if (!items.to_bool() || !items.is_array()) throw std::runtime_error("join expects an array for items, got: " + items.dump());
+        if (!items.to_bool() || !items.is_array()) IC_API::trap("join expects an array for items, got: " + items.dump());
         return do_join(items, sep);
       });
     }
@@ -2621,12 +2632,12 @@ inline std::shared_ptr<Context> Context::builtins() {
   }));
   globals.set("list", simple_function("list", { "items" }, [](const std::shared_ptr<Context> &, Value & args) -> Value {
       auto & items = args.at("items");
-      if (!items.is_array()) throw std::runtime_error("object is not iterable");
+      if (!items.is_array()) IC_API::trap("object is not iterable");
       return items;
   }));
   globals.set("unique", simple_function("unique", { "items" }, [](const std::shared_ptr<Context> &, Value & args) -> Value {
       auto & items = args.at("items");
-      if (!items.is_array()) throw std::runtime_error("object is not iterable");
+      if (!items.is_array()) IC_API::trap("object is not iterable");
       std::unordered_set<Value> seen;
       auto result = Value::array();
       for (size_t i = 0, n = items.size(); i < n; i++) {
@@ -2653,7 +2664,7 @@ inline std::shared_ptr<Context> Context::builtins() {
     args.expectArgs("reject", {2, (std::numeric_limits<size_t>::max)()}, {0, 0});
     auto & items = args.args[0];
     auto filter_fn = context->get(args.args[1]);
-    if (filter_fn.is_null()) throw std::runtime_error("Undefined filter: " + args.args[1].dump());
+    if (filter_fn.is_null()) IC_API::trap("Undefined filter: " + args.args[1].dump());
 
     auto filter_args = Value::array();
     for (size_t i = 2, n = args.args.size(); i < n; i++) {
@@ -2687,7 +2698,7 @@ inline std::shared_ptr<Context> Context::builtins() {
       }
     } else if (args.kwargs.empty() && args.args.size() >= 2) {
       auto fn = context->get(args.args[1]);
-      if (fn.is_null()) throw std::runtime_error("Undefined filter: " + args.args[1].dump());
+      if (fn.is_null()) IC_API::trap("Undefined filter: " + args.args[1].dump());
       ArgumentsValue filter_args { {Value()}, {} };
       for (size_t i = 2, n = args.args.size(); i < n; i++) {
         filter_args.args.emplace_back(args.args[i]);
@@ -2698,7 +2709,7 @@ inline std::shared_ptr<Context> Context::builtins() {
         res.push_back(fn.call(context, filter_args));
       }
     } else {
-      throw std::runtime_error("Invalid or unsupported arguments for map");
+      IC_API::trap("Invalid or unsupported arguments for map");
     }
     return res;
   }));
@@ -2733,7 +2744,7 @@ inline std::shared_ptr<Context> Context::builtins() {
     if (args.args.size() >= 3) {
       has_test = true;
       test_fn = context->get(args.args[2]);
-      if (test_fn.is_null()) throw std::runtime_error("Undefined test: " + args.args[2].dump());
+      if (test_fn.is_null()) IC_API::trap("Undefined test: " + args.args[2].dump());
       for (size_t i = 3, n = args.args.size(); i < n; i++) {
         test_args.args.emplace_back(args.args[i]);
       }
@@ -2774,16 +2785,16 @@ inline std::shared_ptr<Context> Context::builtins() {
         if (name == "start") i = 0;
         else if (name == "end") i = 1;
         else if (name == "step") i = 2;
-        else throw std::runtime_error("Unknown argument " + name + " for function range");
+        else IC_API::trap("Unknown argument " + name + " for function range");
 
         if (param_set[i]) {
-          throw std::runtime_error("Duplicate argument " + name + " for function range");
+          IC_API::trap("Duplicate argument " + name + " for function range");
         }
         startEndStep[i] = value.get<int64_t>();
         param_set[i] = true;
     }
     if (!param_set[1]) {
-      throw std::runtime_error("Missing required argument 'end' for function range");
+      IC_API::trap("Missing required argument 'end' for function range");
     }
     int64_t start = param_set[0] ? startEndStep[0] : 0;
     int64_t end = startEndStep[1];

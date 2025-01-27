@@ -886,7 +886,10 @@ bool llama_model_loader::load_all_data(
     GGML_ASSERT(size_data != 0 && "call init_mappings() first");
 
     std::vector<no_init<uint8_t>> read_buf;
-    std::vector<std::future<std::pair<ggml_tensor *, bool>>> validation_result;
+    // ICPP-PATCH-START
+    // we do not support check_tensors. It requires threading.
+    // std::vector<std::future<std::pair<ggml_tensor *, bool>>> validation_result;
+    // ICPP-PATCH-END
 
     // 4 staging buffers for async uploads, each sized 1MB seems to be a good default for single NVMe drives.
     // NVMe raid configurations might require more / larger buffers.
@@ -1000,11 +1003,14 @@ bool llama_model_loader::load_all_data(
             }
             uint8_t * data = (uint8_t *) mapping->addr() + weight->offs;
 
-            if (check_tensors) {
-                validation_result.emplace_back(std::async(std::launch::async, [cur, data, n_size] {
-                    return std::make_pair(cur, ggml_validate_row_data(cur->type, data, n_size));
-                }));
-            }
+            // ICPP-PATCH-START
+            // we do not support check_tensors. It requires threading.
+            // if (check_tensors) {
+            //     validation_result.emplace_back(std::async(std::launch::async, [cur, data, n_size] {
+            //         return std::make_pair(cur, ggml_validate_row_data(cur->type, data, n_size));
+            //     }));
+            // }
+            // ICPP-PATCH-END
 
             GGML_ASSERT(buf_mmap || cur->data); // either we have a buffer to allocate the tensor in, or it is already allocated
             if (buf_mmap && cur->data == nullptr) {
@@ -1025,11 +1031,14 @@ bool llama_model_loader::load_all_data(
             if (ggml_backend_buffer_is_host(cur->buffer)) {
                 file->seek(weight->offs, SEEK_SET);
                 file->read_raw(cur->data, n_size);
-                if (check_tensors) {
-                    validation_result.emplace_back(std::async(std::launch::async, [cur, n_size] {
-                        return std::make_pair(cur, ggml_validate_row_data(cur->type, cur->data, n_size));
-                    }));
-                }
+                // ICPP-PATCH-START
+                // we do not support check_tensors. It requires threading.
+                // if (check_tensors) {
+                //     validation_result.emplace_back(std::async(std::launch::async, [cur, n_size] {
+                //         return std::make_pair(cur, ggml_validate_row_data(cur->type, cur->data, n_size));
+                //     }));
+                // }
+                // ICPP-PATCH-END
             } else {
                 // If upload_backend is valid load the tensor in chunks to pinned memory and upload the buffers asynchronously to the GPU.
                 if (upload_backend) {
@@ -1076,13 +1085,16 @@ bool llama_model_loader::load_all_data(
 
     // check validation results
     bool validation_failed = false;
-    for (auto & future : validation_result) {
-        auto result = future.get();
-        if (!result.second) {
-            LLAMA_LOG_ERROR("%s: tensor '%s' has invalid data\n", __func__, ggml_get_name(result.first));
-            validation_failed = true;
-        }
-    }
+    // ICPP-PATCH-START
+    // we do not support check_tensors. It requires threading.
+    // for (auto & future : validation_result) {
+    //     auto result = future.get();
+    //     if (!result.second) {
+    //         LLAMA_LOG_ERROR("%s: tensor '%s' has invalid data\n", __func__, ggml_get_name(result.first));
+    //         validation_failed = true;
+    //     }
+    // }
+    // ICPP-PATCH-END
     if (validation_failed) {
         IC_API::trap("found tensors with invalid data");
     }
