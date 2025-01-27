@@ -911,6 +911,11 @@ struct common_init_result common_init_from_params(common_params & params) {
 
     llama_model * model = nullptr;
 
+    // ICPP-PATCH-START
+    // Skip loading the model if the --model parameter is not provided
+    if (!params.model.empty()) {
+    // ICPP-PATCH-END
+
     if (!params.hf_repo.empty() && !params.hf_file.empty()) {
         model = common_load_model_from_hf(params.hf_repo, params.hf_file, params.model, params.hf_token, mparams);
     } else if (!params.model_url.empty()) {
@@ -918,6 +923,14 @@ struct common_init_result common_init_from_params(common_params & params) {
     } else {
         model = llama_model_load_from_file(params.model.c_str(), mparams);
     }
+
+    // ICPP-PATCH-START
+    // Skip loading the model if the --model parameter is not provided
+    } else {
+        // Access the model through g_model and assign it to the local variable
+        model = *g_model;
+    }
+    // ICPP-PATCH-END
 
     if (model == NULL) {
         LOG_ERR("%s: failed to load model '%s'\n", __func__, params.model.c_str());
