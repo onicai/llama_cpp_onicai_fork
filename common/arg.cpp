@@ -449,8 +449,11 @@ static std::string list_builtin_chat_templates() {
 }
 
 common_params_context common_params_parser_init(common_params & params, llama_example ex, void(*print_usage)(int, char **)) {
+    // ICPP-PATCH-START
+    // We do not load dynamic backends. Just using the CPU backend registered already
     // load dynamic backends
-    ggml_backend_load_all();
+    // ggml_backend_load_all();
+    // ICPP-PATCH-END
 
     common_params_context ctx_arg(params);
     ctx_arg.print_usage = print_usage;
