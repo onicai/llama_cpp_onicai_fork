@@ -48,17 +48,28 @@ bool common_arg::is_exclude(enum llama_example ex) {
 }
 
 bool common_arg::get_value_from_env(std::string & output) {
-    if (env == nullptr) return false;
+    // ICPP-PATCH-START
     char * value = std::getenv(env);
     if (value) {
         output = value;
         return true;
     }
     return false;
+    // ICPP-PATCH-END
+    // if (env == nullptr) return false;
+    // char * value = std::getenv(env);
+    // if (value) {
+    //     output = value;
+    //     return true;
+    // }
+    // return false;
 }
 
 bool common_arg::has_value_from_env() {
-    return env != nullptr && std::getenv(env);
+    // ICPP-PATCH-START
+    return false;
+    // ICPP-PATCH-END
+    // return env != nullptr && std::getenv(env);
 }
 
 static std::vector<std::string> break_str_into_lines(std::string input, size_t max_char_per_line) {
