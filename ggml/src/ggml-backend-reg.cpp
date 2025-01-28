@@ -1,3 +1,4 @@
+#include "ic_api.h"
 #include "ggml-backend-impl.h"
 #include "ggml-backend.h"
 #include "ggml-impl.h"
@@ -125,7 +126,13 @@ using dl_handle = void;
 
 struct dl_handle_deleter {
     void operator()(void * handle) {
-        dlclose(handle);
+        // ICPP-PATCH-START
+        // We are NOT dynamically loading any backend
+        // SO WE SHOULD NEVER GET HERE
+        // Avoid linker error by outcommenting this, but inserting a runtime trap
+        // dlclose(handle);
+        IC_API::trap("THIS SHOULD NEVER HAPPEN - dl_handle_deleter::operator() called");
+        // ICPP-PATCH-END
     }
 };
 
