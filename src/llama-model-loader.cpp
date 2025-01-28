@@ -448,9 +448,11 @@ llama_model_loader::llama_model_loader(
         bool check_tensors,
         const struct llama_model_kv_override * param_overrides_p) {
     int trace = 0;
-    if (getenv("LLAMA_TRACE")) {
-        trace = atoi(getenv("LLAMA_TRACE"));
-    }
+    // ICPP-PATCH-START
+    // if (getenv("LLAMA_TRACE")) {
+    //     trace = atoi(getenv("LLAMA_TRACE"));
+    // }
+    // ICPP-PATCH-END
 
     if (param_overrides_p != nullptr) {
         for (const struct llama_model_kv_override * p = param_overrides_p; p->key[0] != 0; p++) {
