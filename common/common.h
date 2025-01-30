@@ -303,13 +303,19 @@ struct common_params {
 
     bool input_prefix_bos  = false; // prefix BOS to user inputs, preceding input_prefix
     bool logits_all        = false; // return logits for all tokens in the batch
-    bool use_mmap          = true;  // use mmap for faster loads
+    // ICPP-PATCH-START
+    // bool use_mmap          = true;  // use mmap for faster loads
+    bool use_mmap          = false;  // not in a canister...
+    // ICPP-PATCH-END
     bool use_mlock         = false; // use mlock to keep model in memory
     bool verbose_prompt    = false; // print prompt tokens before generation
     bool display_prompt    = true;  // print prompt before generation
     bool dump_kv_cache     = false; // dump the KV cache contents for debugging purposes
     bool no_kv_offload     = false; // disable KV offloading
-    bool warmup            = true;  // warmup run
+    // ICPP-PATCH-START
+    // bool warmup            = true;  // warmup run
+    bool warmup            = false;  // no warmup run, saves on instructions - needed for 1.5B models like DeepSeek
+    // ICPP-PATCH-END
     bool check_tensors     = false; // validate tensor data
 
     ggml_type cache_type_k = GGML_TYPE_F16; // KV cache data type for the K

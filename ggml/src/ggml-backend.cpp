@@ -1457,7 +1457,6 @@ ggml_backend_sched_t ggml_backend_sched_new(
 
     struct ggml_backend_sched * sched = (ggml_backend_sched *) calloc(1, sizeof(struct ggml_backend_sched));
 
-    const char * GGML_SCHED_DEBUG = getenv("GGML_SCHED_DEBUG");
     // ICPP-PATCH-START
     // const char * GGML_SCHED_DEBUG = getenv("GGML_SCHED_DEBUG");
     // sched->debug = GGML_SCHED_DEBUG ? atoi(GGML_SCHED_DEBUG) : 0;

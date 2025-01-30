@@ -49,11 +49,6 @@ bool common_arg::is_exclude(enum llama_example ex) {
 
 bool common_arg::get_value_from_env(std::string & output) {
     // ICPP-PATCH-START
-    char * value = std::getenv(env);
-    if (value) {
-        output = value;
-        return true;
-    }
     return false;
     // ICPP-PATCH-END
     // if (env == nullptr) return false;
