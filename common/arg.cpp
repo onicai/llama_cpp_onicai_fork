@@ -220,27 +220,29 @@ static bool common_params_parse_ex(int argc, char ** argv, common_params_context
         }
     }
 
-    // handle environment variables
-    for (auto & opt : ctx_arg.options) {
-        std::string value;
-        if (opt.get_value_from_env(value)) {
-            // try {
-                if (opt.handler_void && (value == "1" || value == "true")) {
-                    opt.handler_void(params);
-                }
-                if (opt.handler_int) {
-                    opt.handler_int(params, std::stoi(value));
-                }
-                if (opt.handler_string) {
-                    opt.handler_string(params, value);
-                    continue;
-                }
-            // } catch (std::exception & e) {
-            //     IC_API::trap(string_format(
-            //         "error while handling environment variable \"%s\": %s\n\n", opt.env, e.what()));
-            // }
-        }
-    }
+    // ICPP-PATCH-START
+    // // handle environment variables
+    // for (auto & opt : ctx_arg.options) {
+    //     std::string value;
+    //     if (opt.get_value_from_env(value)) {
+    //         // try {
+    //             if (opt.handler_void && (value == "1" || value == "true")) {
+    //                 opt.handler_void(params);
+    //             }
+    //             if (opt.handler_int) {
+    //                 opt.handler_int(params, std::stoi(value));
+    //             }
+    //             if (opt.handler_string) {
+    //                 opt.handler_string(params, value);
+    //                 continue;
+    //             }
+    //         // } catch (std::exception & e) {
+    //         //     IC_API::trap(string_format(
+    //         //         "error while handling environment variable \"%s\": %s\n\n", opt.env, e.what()));
+    //         // }
+    //     }
+    // }
+    // ICPP-PATCH-END
 
     // handle command line arguments
     auto check_arg = [&](int i) {
@@ -260,9 +262,11 @@ static bool common_params_parse_ex(int argc, char ** argv, common_params_context
             IC_API::trap(string_format("error: invalid argument: %s", arg.c_str()));
         }
         auto opt = *arg_to_options[arg];
-        if (opt.has_value_from_env()) {
-            fprintf(stderr, "warn: %s environment variable is set, but will be overwritten by command line argument %s\n", opt.env, arg.c_str());
-        }
+        // ICPP-PATCH-START
+        // if (opt.has_value_from_env()) {
+        //     fprintf(stderr, "warn: %s environment variable is set, but will be overwritten by command line argument %s\n", opt.env, arg.c_str());
+        // }
+        // ICPP-PATCH-END
         // try {
             if (opt.handler_void) {
                 opt.handler_void(params);
