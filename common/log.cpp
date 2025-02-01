@@ -8,6 +8,11 @@
 // #include <thread>
 #include <vector>
 
+// ICPP-PATCH-START
+#include <filesystem>
+#include <iostream>
+// ICPP-PATCH-END
+
 int common_log_verbosity_thold = LOG_DEFAULT_LLAMA;
 
 void common_log_set_verbosity_thold(int verbosity) {
@@ -146,6 +151,9 @@ struct common_log {
     }
 
 private:
+    // ICPP-PATCH-START
+    std::string file_path;
+    // ICPP-PATCH-END
     //icpp-no-thread std::mutex mtx;
     //icpp-no-thread std::thread thrd;
     //icpp-no-thread std::condition_variable cv;
@@ -354,8 +362,14 @@ public:
         }
 
         if (path) {
+            // ICPP-PATCH-START
+            file_path = path;
+            // ICPP-PATCH-END
             file = fopen(path, "w");
         } else {
+            // ICPP-PATCH-START
+            file_path = "";
+            // ICPP-PATCH-END
             file = nullptr;
         }
 
@@ -395,6 +409,32 @@ public:
 
         this->timestamps = timestamps;
     }
+
+    // ICPP-PATCH-START
+    bool remove_file(std::string &msg) {
+        bool success = true;
+        if (file) {
+            fclose(file);
+            file = nullptr;
+        }
+        if (!file_path.empty()) {
+            if (std::filesystem::exists(file_path)) {
+                success = std::filesystem::remove(file_path);
+                if (success) {
+                    msg =  "Successfully removed log file: " + file_path;
+                } else {
+                    msg =  "Failed to remove log file: " + file_path;
+                }
+            } else {
+                msg =  "Nothing to remove, log file does not exist: " + file_path;
+            }
+            file_path = "";
+        } else {
+            msg = "No log file to remove.";
+        }
+        return success;
+    }
+    // ICPP-PATCH-END
 };
 
 //
@@ -450,3 +490,10 @@ void common_log_set_prefix(struct common_log * log, bool prefix) {
 void common_log_set_timestamps(struct common_log * log, bool timestamps) {
     log->set_timestamps(timestamps);
 }
+
+// ICPP-PATCH-START
+// We need to add a public function to remove the log file from the canister
+bool common_log_remove_file(struct common_log * log, std::string &msg) {
+    return log->remove_file(msg);
+}
+// ICPP-PATCH-END
