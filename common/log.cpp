@@ -313,8 +313,7 @@ public:
     // }
 
     //icpp-no-thread rewritten for single threaded execution
-    // TODO-615212 - We can remove this function completely
-    //               And also remove the 'is_end' field?
+    // NOTE: Do not remove it, becuase '--log-disable' command line option uses this capability
     void pause() {
         //icpp-no-thread - in single thread, it is always running
         // if (!running) {
