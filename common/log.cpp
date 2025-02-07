@@ -162,7 +162,7 @@ private:
 
     bool prefix;
     bool timestamps;
-    //icpp-no-thread - in single thread, it is always running
+    bool running;
     // bool running;
 
     int64_t t_start;
@@ -179,10 +179,10 @@ public:
     void add(enum ggml_log_level level, const char * fmt, va_list args) {
         //icpp-no-thread std::lock_guard<std::mutex> lock(mtx);
 
-        //icpp-no-thread - in single thread, it is always running
-        // if (!running) {
-        //     // discard messages while the worker thread is paused
-        //     return;
+        if (!running) {
+            // discard messages while the worker thread is paused
+            return;
+        }
         // }
 
         auto & entry = entries[tail];
@@ -255,14 +255,17 @@ public:
     }
 
     //icpp-no-thread rewritten for single threaded execution
+    // Split into resume() and resume_print()
     void resume() {
-        //icpp-no-thread - in single thread, it is always running
-        // if (running) {
-        //     return;
-        // }
+        // just activate logging again if paused
+        running = true;
+    }
 
-        // running = true;
-
+    void resume_printit() {
+        // don't print anything if paused
+        if (!running) {
+            return;
+        }
         while (head != tail) {
             cur = entries[head];
             head = (head + 1) % entries.size();
@@ -315,12 +318,12 @@ public:
     //icpp-no-thread rewritten for single threaded execution
     // NOTE: Do not remove it, becuase '--log-disable' command line option uses this capability
     void pause() {
-        //icpp-no-thread - in single thread, it is always running
-        // if (!running) {
-        //     return;
+        if (!running) {
+            return;
+        }
         // }
 
-        // running = false;
+        running = false;
 
         // Push an entry to signal stopping
         auto &entry = entries[tail];
@@ -354,7 +357,8 @@ public:
 
 
     void set_file(const char * path) {
-        pause();
+        // ICPP-PATCH we keep pause and resume setting as is
+        // pause();
 
         if (file) {
             fclose(file);
@@ -372,11 +376,13 @@ public:
             file = nullptr;
         }
 
-        resume();
+        // ICPP-PATCH we keep pause and resume setting as is
+        // resume();
     }
 
     void set_colors(bool colors) {
-        pause();
+        // ICPP-PATCH we keep pause and resume setting as is
+        // pause();
 
         if (colors) {
             g_col[COMMON_LOG_COL_DEFAULT] = LOG_COL_DEFAULT;
@@ -394,7 +400,8 @@ public:
             }
         }
 
-        resume();
+        // ICPP-PATCH we keep pause and resume setting as is
+        // resume();
     }
 
     void set_prefix(bool prefix) {
@@ -467,9 +474,9 @@ void common_log_add(struct common_log * log, enum ggml_log_level level, const ch
     va_start(args, fmt);
     log->add(level, fmt, args);
     //icpp-no-thread - start
-    // in our single thread case, we also call log->resume() here, 
+    // in our single thread case, we also call log->resume_printit() here,
     // which does the actual output of the log message
-    log->resume();
+    log->resume_printit();
     //icpp-no-thread - end
     va_end(args);
 }
