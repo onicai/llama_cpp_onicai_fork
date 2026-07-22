@@ -1,6 +1,9 @@
 #pragma once
 
 #include "ggml.h" // for ggml_log_level
+// ICPP-PATCH-START
+#include <string>
+// ICPP-PATCH-END
 
 #define LOG_CLR_TO_EOL  "\033[K\r"
 #define LOG_COL_DEFAULT "\033[0m"
@@ -58,6 +61,9 @@ struct common_log * common_log_main();
 void                common_log_pause (struct common_log * log); // pause  the worker thread, not thread-safe
 void                common_log_resume(struct common_log * log); // resume the worker thread, not thread-safe
 void                common_log_free  (struct common_log * log);
+// ICPP-PATCH-START
+bool                common_log_remove_file(struct common_log * log, std::string &msg);
+// ICPP-PATCH-END
 
 LOG_ATTRIBUTE_FORMAT(3, 4)
 void common_log_add(struct common_log * log, enum ggml_log_level level, const char * fmt, ...);

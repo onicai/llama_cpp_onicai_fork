@@ -3,6 +3,10 @@
 
 #include <chrono>
 #include <condition_variable>
+// ICPP-PATCH-START
+#include <filesystem>
+#include <string>
+// ICPP-PATCH-END
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
@@ -149,6 +153,11 @@ struct common_log {
     }
 
 private:
+    // ICPP-PATCH-START
+    // Tracks the current log file so the canister can delete it via
+    // common_log_remove_file() (endpoint: src/logs.cpp remove_log_file).
+    std::string file_path;
+    // ICPP-PATCH-END
     std::mutex              mtx;
     std::thread             thrd;
     std::condition_variable cv_new;  // new entry
@@ -200,8 +209,14 @@ public:
     void add(enum ggml_log_level level, const char * fmt, va_list args) {
         std::unique_lock<std::mutex> lock(mtx);
 
+        // ICPP-PATCH-START
+        // No worker thread on WASI, so nothing can drain the queue while we
+        // block here. add() flushes synchronously instead (see below).
+#ifndef __wasi__
         // block if the queue is full
         cv_full.wait(lock, [this]() { return !running || !is_full(); });
+#endif
+        // ICPP-PATCH-END
 
         if (!running) {
             // discard messages while the worker thread is paused
@@ -252,7 +267,19 @@ public:
         }
 
         tail = (tail + 1) % queue.size();
+        // ICPP-PATCH-START
+        // A canister is single-threaded: flush inline rather than signalling a
+        // worker thread that does not exist.
+#ifdef __wasi__
+        {
+            size_t next_head = head;
+            flush_queue(head, tail, next_head);
+            head = next_head;
+        }
+#else
         cv_new.notify_one();
+#endif
+        // ICPP-PATCH-END
     }
 
     void resume() {
@@ -264,6 +291,10 @@ public:
 
         running = true;
 
+        // ICPP-PATCH-START
+        // WASI has no threads (wasi-shims/thread traps on construction).
+        // add() flushes synchronously, so no worker is needed.
+#ifndef __wasi__
         thrd = std::thread([this]() {
             while (true) {
                 std::unique_lock<std::mutex> lock(mtx);
@@ -286,6 +317,8 @@ public:
                 }
             }
         });
+#endif
+        // ICPP-PATCH-END
     }
 
     void pause() {
@@ -308,7 +341,12 @@ public:
             cv_full.notify_all();
         }
 
+        // ICPP-PATCH-START
+        // No worker thread to join on WASI.
+#ifndef __wasi__
         thrd.join();
+#endif
+        // ICPP-PATCH-END
     }
 
     void set_file(const char * path) {
@@ -319,13 +357,47 @@ public:
         }
 
         if (path) {
+            // ICPP-PATCH-START
+            file_path = path;
+            // ICPP-PATCH-END
             file = fopen(path, "w");
         } else {
+            // ICPP-PATCH-START
+            file_path = "";
+            // ICPP-PATCH-END
             file = nullptr;
         }
 
         resume();
     }
+
+    // ICPP-PATCH-START
+    // Delete the current log file. Ported from upgrade 0002; the canister
+    // exposes this as the remove_log_file endpoint.
+    bool remove_file(std::string &msg) {
+        bool success = true;
+        if (file) {
+            fclose(file);
+            file = nullptr;
+        }
+        if (!file_path.empty()) {
+            if (std::filesystem::exists(file_path)) {
+                success = std::filesystem::remove(file_path);
+                if (success) {
+                    msg = "Successfully removed log file: " + file_path;
+                } else {
+                    msg = "Failed to remove log file: " + file_path;
+                }
+            } else {
+                msg = "Nothing to remove, log file does not exist: " + file_path;
+            }
+            file_path = "";
+        } else {
+            msg = "No log file to remove.";
+        }
+        return success;
+    }
+    // ICPP-PATCH-END
 
     void set_colors(bool colors) {
         pause();
@@ -398,6 +470,12 @@ void common_log_resume(struct common_log * log) {
 void common_log_free(struct common_log * log) {
     delete log;
 }
+
+// ICPP-PATCH-START
+bool common_log_remove_file(struct common_log * log, std::string &msg) {
+    return log->remove_file(msg);
+}
+// ICPP-PATCH-END
 
 void common_log_add(struct common_log * log, enum ggml_log_level level, const char * fmt, ...) {
     va_list args;

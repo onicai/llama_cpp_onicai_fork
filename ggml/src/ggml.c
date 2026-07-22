@@ -511,6 +511,18 @@ bool ggml_guid_matches(ggml_guid_t guid_a, ggml_guid_t guid_b) {
     return memcmp(guid_a, guid_b, sizeof(ggml_guid)) == 0;
 }
 
+// ICPP-PATCH-START
+// GGML_VERSION and GGML_COMMIT are normally injected as CMake compile
+// definitions. icpp-pro does not use CMake, so provide fallbacks here.
+// Bump these when upgrading llama.cpp (see ggml/CMakeLists.txt GGML_VERSION_*).
+#ifndef GGML_VERSION
+#define GGML_VERSION "0.17.0"
+#endif
+#ifndef GGML_COMMIT
+#define GGML_COMMIT "305ba519"
+#endif
+// ICPP-PATCH-END
+
 const char * ggml_version(void) {
     return GGML_VERSION;
 }

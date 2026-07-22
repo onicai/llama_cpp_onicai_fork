@@ -253,6 +253,16 @@ bool set_process_priority(enum ggml_sched_priority prio) {
     return true;
 }
 
+// ICPP-PATCH-START
+// WASI has no process priorities (no PRIO_PROCESS / setpriority). A canister
+// is single-threaded, so this is a no-op that reports success.
+#elif defined(__wasi__)
+
+bool set_process_priority(enum ggml_sched_priority prio) {
+    return true;
+}
+
+// ICPP-PATCH-END
 #else // MacOS and POSIX
 #include <sys/types.h>
 #include <sys/resource.h>
@@ -1035,6 +1045,12 @@ std::string fs_get_cache_directory() {
         cache_directory = std::getenv("LOCALAPPDATA");
 #elif defined(__EMSCRIPTEN__)
         GGML_ABORT("not implemented on this platform");
+// ICPP-PATCH-START
+// The canister virtual filesystem lives in stable memory; there is no $HOME
+// and getenv always returns NULL. Use a fixed path.
+#elif defined(__wasi__)
+        cache_directory = "/tmp/llama_cache/";
+// ICPP-PATCH-END
 #else
 #  error Unknown architecture
 #endif

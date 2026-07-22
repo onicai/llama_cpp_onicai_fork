@@ -572,13 +572,26 @@ struct common_params {
     bool kv_unified        = false; // enable unified KV cache
 
     bool input_prefix_bos  = false; // prefix BOS to user inputs, preceding input_prefix
-    bool use_mmap          = true;  // enable mmap to use filesystem cache
+    // ICPP-PATCH-START
+    // A canister has no host filesystem to mmap; the model lives in the icpp
+    // virtual FS (stable memory). Leaving this true makes load_model attempt an
+    // mmap that faults -> "heap out of bounds" (IC0502). (Ported from b4531.)
+    // bool use_mmap          = true;  // enable mmap to use filesystem cache
+    bool use_mmap          = false; // not in a canister...
+    // ICPP-PATCH-END
     bool use_direct_io     = false; // read from disk without buffering
     bool use_mlock         = false; // use mlock to keep model in memory
     bool verbose_prompt    = false; // print prompt tokens before generation
     bool display_prompt    = true;  // print prompt before generation
     bool no_kv_offload     = false; // disable KV offloading
-    bool warmup            = true;  // warmup run
+    // ICPP-PATCH-START
+    // The warmup runs a llama_decode (empty batch) inside common_init_from_params.
+    // In a canister that decode faults ("heap out of bounds", IC0502) during
+    // load_model, and it also costs instructions we don't need. Disable it.
+    // (Ported from b4531; also saves instructions -- needed for 1.5B models.)
+    // bool warmup            = true;  // warmup run
+    bool warmup            = false; // no warmup run in a canister
+    // ICPP-PATCH-END
     bool check_tensors     = false; // validate tensor data
     bool no_op_offload     = false; // globally disable offload host tensor operations to device
     bool no_extra_bufts    = false; // disable extra buffer types (used for weight repacking)

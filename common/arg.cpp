@@ -45,6 +45,11 @@
 #   endif
 #elif defined(_AIX)
 #include <sys/limits.h>
+// ICPP-PATCH-START
+// WASI has no <sys/syslimits.h>; PATH_MAX comes from <limits.h>.
+#elif defined(__wasi__)
+#include <limits.h>
+// ICPP-PATCH-END
 #else
 #include <sys/syslimits.h>
 #endif
@@ -757,7 +762,16 @@ static bool common_params_parse_ex(int argc, char ** argv, common_params_context
         // TODO @ngxson : maybe show a list of available models in CLI in this case
         bool can_skip_model = params.usage || params.completion || !params.server_base.empty();
         if (!can_skip_model && params.model.path.empty()) {
+            // ICPP-PATCH-START
+            // The canister loads the model once (load_model) and reuses it
+            // across calls, so new_chat/run legitimately parse args without
+            // --model. Gated on LLAMA_CPP_CANISTER (defined for BOTH the wasm
+            // canister build and the native MockIC build in icpp.toml) -- NOT
+            // __wasi__, which is absent in the native build that runs the tests.
+#ifndef LLAMA_CPP_CANISTER
             throw std::invalid_argument("error: --model is required\n");
+#endif
+            // ICPP-PATCH-END
         }
     }
 
