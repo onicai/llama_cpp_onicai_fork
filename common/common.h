@@ -486,7 +486,14 @@ struct common_params {
     std::vector<size_t> fit_params_target = std::vector<size_t>(llama_max_devices(), 1024 * 1024*1024);
 
     enum llama_split_mode split_mode = LLAMA_SPLIT_MODE_LAYER; // how to split the model across GPUs
-    enum llama_load_mode  load_mode  = LLAMA_LOAD_MODE_AUTO; // how to load the model
+    // ICPP-PATCH-START
+    // A canister has no host filesystem to mmap; the model lives in the icpp
+    // virtual FS (stable memory). AUTO enables mmap, which faults during
+    // load_model -> "heap out of bounds" (IC0502). (Ported from b4531; was
+    // use_mmap = false before upstream folded mmap/mlock/direct-io into load_mode.)
+    // enum llama_load_mode  load_mode  = LLAMA_LOAD_MODE_AUTO; // how to load the model
+    enum llama_load_mode  load_mode  = LLAMA_LOAD_MODE_NONE; // not in a canister...
+    // ICPP-PATCH-END
 
     enum llama_lazy_mode lazy_mode = LLAMA_LAZY_MODE_AUTO; // on-demand reading of tensors marked by the arch
 
@@ -581,7 +588,14 @@ struct common_params {
     bool verbose_prompt    = false; // print prompt tokens before generation
     bool display_prompt    = true;  // print prompt before generation
     bool no_kv_offload     = false; // disable KV offloading
-    bool warmup            = true;  // warmup run
+    // ICPP-PATCH-START
+    // The warmup runs a llama_decode (empty batch) inside common_init_from_params.
+    // In a canister that decode faults ("heap out of bounds", IC0502) during
+    // load_model, and it also costs instructions we don't need. Disable it.
+    // (Ported from b4531; also saves instructions -- needed for 1.5B models.)
+    // bool warmup            = true;  // warmup run
+    bool warmup            = false; // no warmup run in a canister
+    // ICPP-PATCH-END
     bool check_tensors     = false; // validate tensor data
     bool no_op_offload     = false; // globally disable offload host tensor operations to device
     bool no_extra_bufts    = false; // disable extra buffer types (used for weight repacking)

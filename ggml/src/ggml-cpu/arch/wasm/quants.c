@@ -1,3 +1,12 @@
+// ICPP-PATCH-START
+// icpp-pro merges [build-wasm] c_paths into the native (build-native) build, so
+// this file is also compiled for the host. Upstream only guards the SIMD kernel
+// BODIES with __wasm_simd128__, leaving the function definitions to collide with
+// arch/x86/quants.c (13 duplicate symbols). The whole file is meaningless off
+// WASM, so make it inert there.
+#ifdef __wasm__
+// ICPP-PATCH-END
+
 #define GGML_COMMON_IMPL_C
 #include "ggml-common.h"
 #include "ggml-quants.h"
@@ -1290,3 +1299,7 @@ void ggml_vec_dot_q6_K_q8_K(int n, float * GGML_RESTRICT s, size_t bs, const voi
     ggml_vec_dot_q6_K_q8_K_generic(n, s, bs, vx, bx, vy, by, nrc);
 #endif
 }
+
+// ICPP-PATCH-START
+#endif // __wasm__
+// ICPP-PATCH-END

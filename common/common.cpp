@@ -53,7 +53,10 @@
 #include <unistd.h>
 #endif
 
-#if !defined(_WIN32)
+// ICPP-PATCH-START
+// wasi-libc has no <pwd.h>; get_home_directory() does not use it on WASI.
+#if !defined(_WIN32) && !defined(__wasi__)
+// ICPP-PATCH-END
 #include <sys/types.h>
 #include <pwd.h>
 #endif
@@ -256,6 +259,16 @@ bool set_process_priority(enum ggml_sched_priority prio) {
     return true;
 }
 
+// ICPP-PATCH-START
+// WASI has no process priorities (no PRIO_PROCESS / setpriority). A canister
+// is single-threaded, so this is a no-op that reports success.
+#elif defined(__wasi__)
+
+bool set_process_priority(enum ggml_sched_priority prio) {
+    return true;
+}
+
+// ICPP-PATCH-END
 #else // MacOS and POSIX
 #include <sys/types.h>
 #include <sys/resource.h>
@@ -978,11 +991,18 @@ static std::filesystem::path get_home_directory() {
     if (!home.empty()) {
         return home;
     }
+// ICPP-PATCH-START
+// No password database in a canister; same fixed root as the cache directory.
+#if defined(__wasi__)
+    return "/tmp";
+#else
     const struct passwd * pw = getpwuid(getuid());
     if (!pw || !pw->pw_dir || !*pw->pw_dir) {
         throw std::runtime_error("Failed to find $HOME directory");
     }
     return pw->pw_dir;
+#endif
+// ICPP-PATCH-END
 }
 #endif
 
@@ -998,6 +1018,12 @@ std::filesystem::path fs_get_cache_directory() {
     }
 #elif defined(__APPLE__)
     cache_directory = get_home_directory() / "Library/Caches";
+// ICPP-PATCH-START
+// The canister virtual filesystem lives in stable memory; there is no $HOME
+// and getenv always returns NULL. Use a fixed path.
+#elif defined(__wasi__)
+    cache_directory = "/tmp/llama_cache";
+// ICPP-PATCH-END
 #else
     cache_directory = common_get_path_from_env("XDG_CACHE_HOME");
     if (cache_directory.empty()) {
