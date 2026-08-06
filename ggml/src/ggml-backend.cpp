@@ -2325,13 +2325,55 @@ static bool ggml_backend_cpu_buffer_type_is_host(ggml_backend_buffer_type_t buft
     GGML_UNUSED(buft);
 }
 
+// ICPP-PATCH-START
+// Bound the size of a single CPU buffer, so that no single memset over one is
+// large enough to overrun an Internet Computer execution slice.
+//
+// The IC charges ~10000 instructions per 4 KiB OS page touched (5000 "accessed"
+// + 5000 "dirty", since the deterministic memory tracker landed in dfinity/ic
+// b7225383e) and it CANNOT interrupt a bulk memory operation. Deterministic time
+// slicing rejects a message once one uninterrupted stretch costs
+// slice_instruction_limit + max_slice_instruction_limit = 4B instructions
+// (2 x MAX_INSTRUCTIONS_PER_SLICE). A single memset over the whole KV cache
+// therefore fails with IC0522 "large memory operation ... exceeded the slice
+// limit" -- measured at ~2.44B for a 952 MiB KV cache (Qwen3-1.7B, -c 16384),
+// which blows the budget whenever it happens to start late in a slice. That is
+// why the failure is NOT monotonic in --ctx-size.
+//
+// Returning a max size here makes ggml_backend_alloc_ctx_tensors_from_buft()
+// split the allocation into several buffers wrapped in a multi_buffer, whose
+// clear() performs one memset PER SUB-BUFFER -- giving DTS a pause point
+// between them. This is llama.cpp's own mechanism, used by backends that have a
+// real allocation limit; llama-kv-cache.cpp and llama-model.cpp both already
+// account for a multi_buffer here (see their commented-out get_base asserts).
+//
+// This matters for INFERENCE as much as for loading: main_.cpp calls
+// llama_memory_clear(mem, true) at the start of every run_update/run_query,
+// which re-runs the same full-KV memset on every call.
+//
+// 128 MiB = 32768 pages ~= 0.33B instructions per memset -- about 6x under the
+// 2B slice budget, so it is safe no matter where in a slice the memset starts.
+// A single tensor larger than this simply gets its own oversized buffer (see
+// the split condition in ggml_backend_alloc_ctx_tensors_from_buft_impl), so
+// nothing fails.
+static size_t ggml_backend_cpu_buffer_type_get_max_size(ggml_backend_buffer_type_t buft) {
+    GGML_UNUSED(buft);
+#ifdef __wasi__
+    return (size_t) 128 * 1024 * 1024;
+#else
+    return SIZE_MAX; // upstream default: no limit
+#endif
+}
+// ICPP-PATCH-END
+
 ggml_backend_buffer_type_t ggml_backend_cpu_buffer_type(void) {
     static struct ggml_backend_buffer_type ggml_backend_cpu_buffer_type = {
         /* .iface   = */ {
             /* .get_name         = */ ggml_backend_cpu_buffer_type_get_name,
             /* .alloc_buffer     = */ ggml_backend_cpu_buffer_type_alloc_buffer,
             /* .get_alignment    = */ ggml_backend_cpu_buffer_type_get_alignment,
-            /* .get_max_size     = */ NULL, // defaults to SIZE_MAX
+            // ICPP-PATCH: was NULL (SIZE_MAX). See the comment above.
+            /* .get_max_size     = */ ggml_backend_cpu_buffer_type_get_max_size,
             /* .get_alloc_size   = */ NULL, // defaults to ggml_nbytes
             /* .is_host          = */ ggml_backend_cpu_buffer_type_is_host,
         },
