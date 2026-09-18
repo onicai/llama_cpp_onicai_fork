@@ -1141,6 +1141,14 @@ void llama_context::detach_threadpool() {
 // under a different value of any of these makes llama_state_load_file throw,
 // which traps the canister (the WASI shim has no unwinding), so the canister
 // stamps this string next to each cache and discards on mismatch instead.
+//
+// KEEP THIS EXHAUSTIVE -- the stamp only protects against the cache-layout trap
+// for the fields listed here. On any llama.cpp upgrade, if a new context-level
+// flag starts affecting the session-file serialization (the llama_state_* /
+// KV-cache state_read/state_write path), it MUST be added to this string too;
+// otherwise a cache written under the old value passes the stamp check, loads,
+// and traps again. Model-level factors are covered separately by the model-id
+// stamp (prompt_cache_model_id), so only context-level layout belongs here.
 int32_t llama_context::state_layout_desc(char * buf, size_t buf_size) const {
     return snprintf(buf, buf_size, "ctx=%u seq=%u fa=%d uni=%d tk=%s tv=%s",
             cparams.n_ctx, cparams.n_seq_max,
