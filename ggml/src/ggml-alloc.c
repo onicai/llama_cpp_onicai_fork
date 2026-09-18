@@ -989,6 +989,27 @@ static void ggml_gallocr_init_tensor(ggml_gallocr_t galloc, struct ggml_tensor *
                 // this tensor was allocated without ggml-backend
                 return;
             }
+            // ICPP-PATCH-START
+            // A galloc-managed tensor (real offset) that already has data is
+            // normally a re-alloc of the same plan, and its pointer already
+            // equals the planned address. But when the compute buffer was just
+            // freed and reallocated (a cached graph re-allocated after a
+            // resize), the kept pointer targets the OLD buffer -- upstream
+            // keeps it silently and compute then writes out of bounds. Detect
+            // the divergence and re-point to the planned address instead.
+            if (tensor_alloc->addr.offset != SIZE_MAX) {
+                struct vbuffer * vbuf = galloc->buffers[buffer_id];
+                void * base = ggml_backend_buffer_get_base(vbuf->chunks[tensor_alloc->addr.chunk]);
+                void * addr = (char *)base + tensor_alloc->addr.offset;
+                if (tensor->data != addr) {
+                    GGML_LOG_WARN("%s: tensor '%s' kept a stale data pointer across a buffer reallocation, re-pointing\n",
+                                  __func__, tensor->name);
+                    tensor->buffer = vbuf->chunks[tensor_alloc->addr.chunk];
+                    tensor->data   = addr;
+                    ggml_backend_buffer_init_tensor(tensor->buffer, tensor);
+                }
+            }
+            // ICPP-PATCH-END
         }
     }
 }

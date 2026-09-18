@@ -262,10 +262,22 @@ void ggml_backend_cpu_set_threadpool(ggml_backend_t backend_cpu, ggml_threadpool
 
     struct ggml_backend_cpu_context * ctx = (struct ggml_backend_cpu_context *)backend_cpu->context;
 
+    // ICPP-PATCH-START
+    // On the IC the canister frees its threadpool at the end of every update
+    // call, while this persisted ctx->threadpool keeps the address. The old
+    // pointer here can therefore be a FREED heap block, and pausing it writes
+    // through it (the pthread mutex sits at offset 0, right over dlmalloc's
+    // free-list links) -> silent allocator corruption -> a delayed IC0502
+    // "heap out of bounds" on a later malloc/free. A canister is
+    // single-threaded (no worker threads exist), so the pause is meaningless:
+    // skip the dereference entirely. See README-0003-305ba519-IC0502.md.
+#ifndef __wasi__
     if (ctx->threadpool && ctx->threadpool != threadpool) {
         // already had a different threadpool, pause/suspend it before switching
         ggml_threadpool_pause(ctx->threadpool);
     }
+#endif
+    // ICPP-PATCH-END
     ctx->threadpool = threadpool;
 }
 

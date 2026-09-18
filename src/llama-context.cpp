@@ -379,6 +379,9 @@ llama_context::llama_context(
 
     // init the memory module
     if (!hparams.vocab_only) {
+        // ICPP-PATCH: keep the creation-time cache types for state_layout_desc
+        kv_type_k = params.type_k;
+        kv_type_v = params.type_v;
         llama_memory_params params_mem = {
             /*.type_k    =*/ params.type_k,
             /*.type_v    =*/ params.type_v,
@@ -1116,7 +1119,35 @@ void llama_context::detach_threadpool() {
 
     this->threadpool       = nullptr;
     this->threadpool_batch = nullptr;
+
+    // ICPP-PATCH-START
+    // Also clear the copy that graph_compute() latched into the CPU backend:
+    // the backend object persists with this context (IC Orthogonal
+    // Persistence), so once the caller frees its threadpool that latched copy
+    // dangles, and the next ggml_backend_cpu_set_threadpool() would pause a
+    // freed pool. See README-0003-305ba519-IC0502.md.
+    if (backend_cpu != nullptr) {
+        auto * reg = ggml_backend_dev_backend_reg(ggml_backend_get_device(backend_cpu));
+        auto * set_threadpool_fn = (decltype(ggml_backend_cpu_set_threadpool) *) ggml_backend_reg_get_proc_address(reg, "ggml_backend_cpu_set_threadpool");
+        if (set_threadpool_fn) {
+            set_threadpool_fn(backend_cpu, nullptr);
+        }
+    }
+    // ICPP-PATCH-END
 }
+
+// ICPP-PATCH-START
+// The fields that determine the session-file byte layout. A cache written
+// under a different value of any of these makes llama_state_load_file throw,
+// which traps the canister (the WASI shim has no unwinding), so the canister
+// stamps this string next to each cache and discards on mismatch instead.
+int32_t llama_context::state_layout_desc(char * buf, size_t buf_size) const {
+    return snprintf(buf, buf_size, "ctx=%u seq=%u fa=%d uni=%d tk=%s tv=%s",
+            cparams.n_ctx, cparams.n_seq_max,
+            cparams.flash_attn ? 1 : 0, cparams.kv_unified ? 1 : 0,
+            ggml_type_name(kv_type_k), ggml_type_name(kv_type_v));
+}
+// ICPP-PATCH-END
 
 void llama_context::set_n_threads(int32_t n_threads, int32_t n_threads_batch) {
     LLAMA_LOG_DEBUG("%s: n_threads = %d, n_threads_batch = %d\n", __func__, n_threads, n_threads_batch);
@@ -3641,6 +3672,12 @@ void llama_attach_threadpool(
 void llama_detach_threadpool(llama_context * ctx) {
     ctx->detach_threadpool();
 }
+
+// ICPP-PATCH-START
+int32_t llama_state_layout_desc(const llama_context * ctx, char * buf, size_t buf_size) {
+    return ctx->state_layout_desc(buf, buf_size);
+}
+// ICPP-PATCH-END
 
 void llama_set_n_threads(llama_context * ctx, int32_t n_threads, int32_t n_threads_batch) {
     ctx->set_n_threads(n_threads, n_threads_batch);

@@ -108,6 +108,12 @@ struct llama_context {
 
     void detach_threadpool();
 
+    // ICPP-PATCH-START
+    // Layout identity of this context's session-file serialization, for the
+    // canister's prompt-cache stamp (see llama_state_layout_desc in llama.h).
+    int32_t state_layout_desc(char * buf, size_t buf_size) const;
+    // ICPP-PATCH-END
+
     void set_n_threads(int32_t n_threads, int32_t n_threads_batch);
 
     void set_abort_callback(bool (*abort_callback)(void * data), void * abort_callback_data);
@@ -353,6 +359,13 @@ private:
 
     ggml_threadpool_t threadpool       = nullptr;
     ggml_threadpool_t threadpool_batch = nullptr;
+
+    // ICPP-PATCH-START
+    // Creation-time KV cache types; cparams does not retain them, but they
+    // shape the session-file layout, so state_layout_desc reports them.
+    ggml_type kv_type_k = GGML_TYPE_F16;
+    ggml_type kv_type_v = GGML_TYPE_F16;
+    // ICPP-PATCH-END
 
     ggml_abort_callback abort_callback      = nullptr;
     void *              abort_callback_data = nullptr;

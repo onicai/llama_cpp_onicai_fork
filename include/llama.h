@@ -610,6 +610,13 @@ extern "C" {
     // Get a string describing the model type
     LLAMA_API int32_t llama_model_desc(const struct llama_model * model, char * buf, size_t buf_size);
 
+    // ICPP-PATCH-START
+    // Get a string describing the context's session-file layout (ctx size,
+    // seq count, flash-attn, kv-unified, KV cache types). Two contexts with
+    // different strings cannot load each other's state files.
+    LLAMA_API int32_t llama_state_layout_desc(const struct llama_context * ctx, char * buf, size_t buf_size);
+    // ICPP-PATCH-END
+
     // Get the model file type (quantization), e.g. LLAMA_FTYPE_MOSTLY_Q8_0
     LLAMA_API enum llama_ftype llama_model_ftype(const struct llama_model * model);
 
