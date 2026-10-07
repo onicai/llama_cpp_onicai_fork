@@ -2577,7 +2577,7 @@ static bool ggml_backend_cpu_buffer_type_is_host(ggml_backend_buffer_type_t buft
 // which blows the budget whenever it happens to start late in a slice. That is
 // why the failure is NOT monotonic in --ctx-size.
 //
-// Returning a max size here makes ggml_backend_alloc_ctx_tensors_from_buft()
+// Returning a max size here makes ggml_backend_buft_alloc_buffer_n_default()
 // split the allocation into several buffers wrapped in a multi_buffer, whose
 // clear() performs one memset PER SUB-BUFFER -- giving DTS a pause point
 // between them. This is llama.cpp's own mechanism, used by backends that have a
@@ -2591,7 +2591,7 @@ static bool ggml_backend_cpu_buffer_type_is_host(ggml_backend_buffer_type_t buft
 // 128 MiB = 32768 pages ~= 0.33B instructions per memset -- about 6x under the
 // 2B slice budget, so it is safe no matter where in a slice the memset starts.
 // A single tensor larger than this simply gets its own oversized buffer (see
-// the split condition in ggml_backend_alloc_ctx_tensors_from_buft_impl), so
+// the split condition in ggml_backend_buft_alloc_buffer_n_plan), so
 // nothing fails.
 static size_t ggml_backend_cpu_buffer_type_get_max_size(ggml_backend_buffer_type_t buft) {
     GGML_UNUSED(buft);

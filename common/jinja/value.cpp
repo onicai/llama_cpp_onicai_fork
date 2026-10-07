@@ -1,5 +1,8 @@
 #include "runtime.h"
-#include "unicode.h"
+// ICPP-PATCH: was "unicode.h". icpp-pro does not keep the include-dir order, so a
+// bare "unicode.h" can resolve to src/unicode.h (the tokenizer one) instead of
+// common/unicode.h, which CMake puts first upstream.
+#include "../unicode.h"
 #include "value.h"
 
 // for converting from JSON to jinja values
