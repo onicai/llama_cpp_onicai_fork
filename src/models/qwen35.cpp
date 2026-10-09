@@ -229,6 +229,13 @@ llama_model_qwen35::graph::graph(const llama_model & model, const llm_graph_para
         ggml_build_forward_expand(gf, embd);
     }
 
+    // ICPP-PATCH-START
+    // A decision model (kev) reads only the embeddings output, and in
+    // embeddings mode every token is an output: the LM head (n_vocab x n_embd
+    // per token) adds ~50% to each token of a question, which is what limits
+    // the question length within one update call. Skip it in that case.
+    if (!(model.cls_out && cparams.embeddings)) {
+    // ICPP-PATCH-END
     // LM head
     cur = build_lora_mm(model.output, cur, model.output_s);
 
@@ -236,6 +243,9 @@ llama_model_qwen35::graph::graph(const llama_model & model, const llm_graph_para
     res->t_logits = cur;
 
     ggml_build_forward_expand(gf, cur);
+    // ICPP-PATCH-START
+    }
+    // ICPP-PATCH-END
 }
 
 std::pair<ggml_tensor *, ggml_tensor *> llama_model_qwen35::graph::build_qkvz(
