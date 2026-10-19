@@ -82,6 +82,11 @@ struct llama_context {
     float * get_logits();
     float * get_logits_ith(int32_t i);
 
+    // ICPP-PATCH-START
+    // see llama_set_logits_last in llama.h
+    bool set_logits_last(const float * src, int32_t n_vocab);
+    // ICPP-PATCH-END
+
     float * get_embeddings();
     float * get_embeddings_ith(int32_t i);
     float * get_embeddings_seq(llama_seq_id seq_id);

@@ -970,6 +970,27 @@ float * llama_context::get_logits_ith(int32_t i) {
     }
 }
 
+// ICPP-PATCH-START
+bool llama_context::set_logits_last(const float * src, int32_t n_vocab) {
+    if (n_vocab != model.vocab.n_tokens() || !sampling.samplers.empty()) {
+        return false;
+    }
+
+    synchronize();
+
+    // resets output_ids and n_outputs
+    if (output_reserve(1) < 1 || logits.data == nullptr) {
+        return false;
+    }
+    output_swaps.clear();
+
+    memcpy(logits.data, src, (size_t) n_vocab * sizeof(float));
+    n_outputs = 1;
+
+    return true;
+}
+// ICPP-PATCH-END
+
 float * llama_context::get_embeddings() {
     output_reorder();
 
@@ -4128,6 +4149,12 @@ float * llama_get_logits_ith(llama_context * ctx, int32_t i) {
 
     return res;
 }
+
+// ICPP-PATCH-START
+bool llama_set_logits_last(llama_context * ctx, const float * logits, int32_t n_vocab) {
+    return ctx->set_logits_last(logits, n_vocab);
+}
+// ICPP-PATCH-END
 
 float * llama_get_embeddings(llama_context * ctx) {
     ctx->synchronize();

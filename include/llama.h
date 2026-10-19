@@ -1149,6 +1149,15 @@ extern "C" {
     // returns NULL for invalid ids.
     LLAMA_API float * llama_get_logits_ith(struct llama_context * ctx, int32_t i);
 
+    // ICPP-PATCH-START
+    // Make `logits` (n_vocab floats) the only output row, as if the last decode
+    // produced them, so llama_get_logits_ith(ctx, -1) returns them. A session
+    // file restores the memory but no logits; this restores the logits saved
+    // with it. Returns false if n_vocab does not match the model or backend
+    // samplers are configured.
+    LLAMA_API bool llama_set_logits_last(struct llama_context * ctx, const float * logits, int32_t n_vocab);
+    // ICPP-PATCH-END
+
     // Get all output token embeddings.
     // when pooling_type == LLAMA_POOLING_TYPE_NONE or when using a generative model,
     // the embeddings for which llama_batch.logits[i] != 0 are stored contiguously
